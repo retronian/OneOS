@@ -7,6 +7,7 @@
 #include "defines.h"
 #include "api.h"
 #include "utils.h"
+#include "lang.h"
 
 static int getButtonWidth(char* label) {
 	SDL_Surface* text;
@@ -215,7 +216,7 @@ int main(int argc , char* argv[]) {
 					x += w + SCALE1(BUTTON_MARGIN);
 				}
 				if (has_power) {
-					blitButton("POWER", screen, PAD_isPressed(BTN_POWER), x, y, w);
+					blitButton((char*)lang.power, screen, PAD_isPressed(BTN_POWER), x, y, w);
 					x += w + SCALE1(BUTTON_MARGIN);
 				}
 			}
