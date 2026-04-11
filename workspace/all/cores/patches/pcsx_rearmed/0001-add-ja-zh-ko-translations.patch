@@ -1,0 +1,644 @@
+diff --git a/frontend/libretro_core_options.h b/frontend/libretro_core_options.h
+index e049c6f..14fff41 100644
+--- a/frontend/libretro_core_options.h
++++ b/frontend/libretro_core_options.h
+@@ -1796,7 +1796,7 @@ struct retro_core_options_v2 options_us = {
+ #ifndef HAVE_NO_LANGEXTRA
+ struct retro_core_options_v2 *options_intl[RETRO_LANGUAGE_LAST] = {
+    &options_us, /* RETRO_LANGUAGE_ENGLISH */
+-   NULL,        /* RETRO_LANGUAGE_JAPANESE */
++   &options_ja, /* RETRO_LANGUAGE_JAPANESE */
+    NULL,        /* RETRO_LANGUAGE_FRENCH */
+    NULL,        /* RETRO_LANGUAGE_SPANISH */
+    NULL,        /* RETRO_LANGUAGE_GERMAN */
+@@ -1805,9 +1805,9 @@ struct retro_core_options_v2 *options_intl[RETRO_LANGUAGE_LAST] = {
+    NULL,        /* RETRO_LANGUAGE_PORTUGUESE_BRAZIL */
+    NULL,        /* RETRO_LANGUAGE_PORTUGUESE_PORTUGAL */
+    NULL,        /* RETRO_LANGUAGE_RUSSIAN */
+-   NULL,        /* RETRO_LANGUAGE_KOREAN */
+-   NULL,        /* RETRO_LANGUAGE_CHINESE_TRADITIONAL */
+-   NULL,        /* RETRO_LANGUAGE_CHINESE_SIMPLIFIED */
++   &options_ko, /* RETRO_LANGUAGE_KOREAN */
++   &options_cht,/* RETRO_LANGUAGE_CHINESE_TRADITIONAL */
++   &options_chs,/* RETRO_LANGUAGE_CHINESE_SIMPLIFIED */
+    NULL,        /* RETRO_LANGUAGE_ESPERANTO */
+    NULL,        /* RETRO_LANGUAGE_POLISH */
+    NULL,        /* RETRO_LANGUAGE_VIETNAMESE */
+diff --git a/frontend/libretro_core_options_intl.h b/frontend/libretro_core_options_intl.h
+index 5e74450..d2e06ca 100644
+--- a/frontend/libretro_core_options_intl.h
++++ b/frontend/libretro_core_options_intl.h
+@@ -1,4 +1,4 @@
+-﻿#ifndef LIBRETRO_CORE_OPTIONS_INTL_H__
++#ifndef LIBRETRO_CORE_OPTIONS_INTL_H__
+ #define LIBRETRO_CORE_OPTIONS_INTL_H__
+ 
+ #if defined(_MSC_VER) && (_MSC_VER >= 1500 && _MSC_VER < 1900)
+@@ -11,20 +11,16 @@
+ 
+ /*
+  ********************************
+- * VERSION: 2.0
++ * VERSION: 2.1
+  ********************************
+  *
++ * - 2.1: Partial Japanese translation for user-facing options
++ *        (relies on OneOS merge-aware SET_CORE_OPTIONS_INTL handler
++ *         to fall back to English for missing keys/values)
+  * - 2.0: Add support for core options v2 interface
+  * - 1.3: Move translations to libretro_core_options_intl.h
+- *        - libretro_core_options_intl.h includes BOM and utf-8
+- *          fix for MSVC 2010-2013
+- *        - Added HAVE_NO_LANGEXTRA flag to disable translations
+- *          on platforms/compilers without BOM support
+- * - 1.2: Use core options v1 interface when
+- *        RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION is >= 1
+- *        (previously required RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION == 1)
+- * - 1.1: Support generation of core options v0 retro_core_option_value
+- *        arrays containing options with a single value
++ * - 1.2: Use core options v1 interface
++ * - 1.1: v0 single-value arrays
+  * - 1.0: First commit
+ */
+ 
+@@ -40,6 +36,350 @@ extern "C" {
+ 
+ /* RETRO_LANGUAGE_JAPANESE */
+ 
++struct retro_core_option_v2_category option_cats_ja[] = {
++   { "system",      "システム",            "リージョン / BIOS / メモリーカード等の基本ハードウェア設定。" },
++   { "video",       "ビデオ",              "基本的な表示設定。" },
++#ifdef GPU_NEON
++   { "gpu_neon",    "GPU プラグイン",      "NEON GPU プラグインの低レベル設定。" },
++#endif
++#ifdef GPU_PEOPS
++   { "gpu_peops",   "GPU プラグイン (高度)", "P.E.Op.S. GPU プラグインの低レベル設定。" },
++#endif
++#ifdef GPU_UNAI
++   { "gpu_unai",    "GPU プラグイン (高度)", "UNAI GPU プラグインの低レベル設定。" },
++#endif
++   { "audio",       "オーディオ",          "リバーブ / 補間 / CD オーディオデコードなどサウンド設定。" },
++   { "input",       "入力",                "アナログ応答 / 振動 / マルチタップ / ライトガン等の入力デバイス設定。" },
++   { "compat_hack", "互換性修正",          "特定ゲームの正常動作に必要な設定・回避策。" },
++   { "speed_hack",  "スピードハック (高度)", "精度・安定性を犠牲にしてパフォーマンスを向上させるハック。" },
++   { NULL, NULL, NULL },
++};
++
++/* Shared value arrays for common enums.
++ * OneOS merge logic only reads the labels; values must match us keys. */
++#define VALS_DISABLED_ENABLED \
++   { { "disabled", "無効" }, { "enabled", "有効" }, { NULL, NULL } }
++#define VALS_AUTO_DISABLED_ENABLED \
++   { { "auto", "自動" }, { "disabled", "無効" }, { "enabled", "有効" }, { NULL, NULL } }
++#define VALS_AUTO \
++   { { "auto", "自動" }, { NULL, NULL } }
++
++struct retro_core_option_v2_definition option_defs_ja[] = {
++   { "pcsx_rearmed_region",
++     "本体リージョン", NULL, NULL, NULL, "system",
++     { { "auto", "自動" }, { "NTSC", NULL }, { "PAL", NULL }, { NULL, NULL } },
++     "auto" },
++   { "pcsx_rearmed_bios",
++     "BIOS 選択", NULL, NULL, NULL, "system",
++     { { "auto", "自動" }, { "HLE", NULL }, { NULL, NULL } },
++     "auto" },
++   { "pcsx_rearmed_show_bios_bootlogo",
++     "BIOS 名 / 起動ロゴ表示", NULL, NULL, NULL, "system",
++     { { "disabled", "無効" }, { "enabled", "有効" }, { "enabled_no_pcsx", "有効 (PCSXtm なし)" }, { NULL, NULL } },
++     "disabled" },
++   { "pcsx_rearmed_memcard2",
++     "メモリーカード 2 (共有)", NULL, NULL, NULL, "system",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_cd_readahead",
++     "CD 先読み", NULL, NULL, NULL, "system",
++     VALS_AUTO,
++     "12" },
++   { "pcsx_rearmed_drc",
++     "動的再コンパイラ", NULL, NULL, NULL, "system",
++     VALS_DISABLED_ENABLED,
++     "enabled" },
++   { "pcsx_rearmed_drc_thread",
++     "DRC スレッド化", NULL, NULL, NULL, "system",
++     VALS_AUTO_DISABLED_ENABLED,
++     "auto" },
++   { "pcsx_rearmed_psxclock",
++     "PSX CPU クロック (%)", NULL, NULL, NULL, "system",
++     VALS_AUTO,
++     "auto" },
++   { "pcsx_rearmed_dithering",
++     "ディザリングパターン", NULL, NULL, NULL, "video",
++     { { "disabled", "無効" }, { "enabled", "有効" }, { "force", "強制" }, { NULL, NULL } },
++     "enabled" },
++   { "pcsx_rearmed_gpu_thread_rendering",
++     "スレッド描画", NULL, NULL, NULL, "video",
++     VALS_AUTO_DISABLED_ENABLED,
++     "auto" },
++   { "pcsx_rearmed_frameskip_type",
++     "フレームスキップ", NULL, NULL, NULL, "video",
++     { { "disabled", "無効" }, { "auto", "自動" }, { "auto_threshold", "自動 (しきい値)" }, { "fixed_interval", "固定間隔" }, { NULL, NULL } },
++     "disabled" },
++   { "pcsx_rearmed_frameskip_threshold",
++     "フレームスキップしきい値 (%)", NULL, NULL, NULL, "video",
++     VALS_AUTO,
++     "33" },
++   { "pcsx_rearmed_frameskip_interval",
++     "フレームスキップ間隔", NULL, NULL, NULL, "video",
++     VALS_AUTO,
++     "1" },
++   { "pcsx_rearmed_display_fps_v2",
++     "FPS 表示", NULL, NULL, NULL, "video",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_fractional_framerate",
++     "端数フレームレート", NULL, NULL, NULL, "video",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_alt_flip",
++     "代替フリップモード", NULL, NULL, NULL, "video",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_rgb32_output",
++     "RGB32 出力", NULL, NULL, NULL, "video",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_scale_hires",
++     "高解像度スケーリング", NULL, NULL, NULL, "video",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_gpu_slow_llists",
++     "低速リンクリスト", NULL, NULL, NULL, "video",
++     VALS_AUTO_DISABLED_ENABLED,
++     "auto" },
++   { "pcsx_rearmed_show_overscan",
++     "オーバースキャン表示", NULL, NULL, NULL, "video",
++     { { "disabled", "無効" }, { "enabled", "有効" }, { "hack", "ハック" }, { NULL, NULL } },
++     "disabled" },
++   { "pcsx_rearmed_screen_centering",
++     "画面センタリング", NULL, NULL, NULL, "video",
++     { { "auto", "自動" }, { "game", "ゲーム" }, { "borders", "枠あり" }, { "manual", "手動" }, { NULL, NULL } },
++     "auto" },
++   { "pcsx_rearmed_neon_interlace_enable_v2",
++     "NEON インターレース", NULL, NULL, NULL, "video",
++     VALS_AUTO_DISABLED_ENABLED,
++     "auto" },
++   { "pcsx_rearmed_neon_enhancement_enable",
++     "NEON 解像度強化", NULL, NULL, NULL, "video",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_spu_reverb",
++     "SPU リバーブ", NULL, NULL, NULL, "audio",
++     VALS_DISABLED_ENABLED,
++     "enabled" },
++   { "pcsx_rearmed_spu_interpolation",
++     "SPU 補間", NULL, NULL, NULL, "audio",
++     { { "simple", "シンプル" }, { "gaussian", "ガウス" }, { "cubic", "キュービック" }, { "off", "無効" }, { NULL, NULL } },
++     "simple" },
++   { "pcsx_rearmed_nocdaudio",
++     "CD オーディオ", NULL, NULL, NULL, "audio",
++     VALS_DISABLED_ENABLED,
++     "enabled" },
++   { "pcsx_rearmed_noxadecoding",
++     "XA デコード", NULL, NULL, NULL, "audio",
++     VALS_DISABLED_ENABLED,
++     "enabled" },
++   { "pcsx_rearmed_spu_thread",
++     "SPU スレッド化", NULL, NULL, NULL, "audio",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_analog_axis_modifier",
++     "アナログ軸範囲", NULL, NULL, NULL, "input",
++     { { "square", "正方形" }, { "circle", "円形" }, { NULL, NULL } },
++     "square" },
++   { "pcsx_rearmed_vibration",
++     "振動効果", NULL, NULL, NULL, "input",
++     VALS_DISABLED_ENABLED,
++     "enabled" },
++   { "pcsx_rearmed_analog_combo",
++     "アナログ/十字キー切替コンボ", NULL, NULL, NULL, "input",
++     { { "l1+r1+select", "L1+R1+Select" }, { "l3+r3", "L3+R3" }, { "disabled", "無効" }, { NULL, NULL } },
++     "l1+r1+select" },
++   { "pcsx_rearmed_multitap",
++     "マルチタップ", NULL, NULL, NULL, "input",
++     { { "auto", "自動" }, { "disabled", "無効" }, { "port 1", "ポート 1" }, { "port 2", "ポート 2" }, { "ports 1 and 2", "ポート 1 & 2" }, { NULL, NULL } },
++     "auto" },
++   { "pcsx_rearmed_icache_emulation",
++     "命令キャッシュエミュレーション", NULL, NULL, NULL, "compat_hack",
++     VALS_DISABLED_ENABLED,
++     "enabled" },
++   { "pcsx_rearmed_exception_emulation",
++     "例外エミュレーション", NULL, NULL, NULL, "compat_hack",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_cd_turbo",
++     "CD ターボ", NULL, NULL, NULL, "compat_hack",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++
++   /* ------- Additional: Screen centering fine-adjust ------- */
++   { "pcsx_rearmed_screen_centering_x",
++     "画面センタリング X", NULL, NULL, NULL, "video",
++     VALS_AUTO,
++     "0" },
++   { "pcsx_rearmed_screen_centering_y",
++     "画面センタリング Y", NULL, NULL, NULL, "video",
++     VALS_AUTO,
++     "0" },
++   { "pcsx_rearmed_screen_centering_h_adj",
++     "センタリング水平調整", NULL, NULL, NULL, "video",
++     VALS_AUTO,
++     "0" },
++
++   /* ------- NEON enhancement options ------- */
++   { "pcsx_rearmed_neon_enhancement_no_main",
++     "解像度強化スピードハック", NULL, NULL, NULL, "video",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_neon_enhancement_tex_adj_v2",
++     "テクスチャ調整", NULL, NULL, NULL, "video",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++
++   /* ------- Advanced GPU P.E.Op.S. ------- */
++   { "pcsx_rearmed_show_gpu_peops_settings",
++     "P.E.Op.S. GPU 設定表示", NULL, NULL, NULL, "gpu_peops",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_gpu_peops_odd_even_bit",
++     "奇数偶数ビットハック", NULL, NULL, NULL, "gpu_peops",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_gpu_peops_expand_screen_width",
++     "画面幅拡張", NULL, NULL, NULL, "gpu_peops",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_gpu_peops_ignore_brightness",
++     "輝度無視", NULL, NULL, NULL, "gpu_peops",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_gpu_peops_disable_coord_check",
++     "座標チェック無効", NULL, NULL, NULL, "gpu_peops",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_gpu_peops_lazy_screen_update",
++     "遅延画面更新", NULL, NULL, NULL, "gpu_peops",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_gpu_peops_repeated_triangles",
++     "平面三角形の再描画", NULL, NULL, NULL, "gpu_peops",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_gpu_peops_quads_with_triangles",
++     "四角形を三角形で描画", NULL, NULL, NULL, "gpu_peops",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_gpu_peops_fake_busy_state",
++     "GPU ビジー状態の偽装", NULL, NULL, NULL, "gpu_peops",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++
++   /* ------- Advanced GPU UNAI ------- */
++   { "pcsx_rearmed_show_gpu_unai_settings",
++     "UNAI GPU 設定表示", NULL, NULL, NULL, "gpu_unai",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_gpu_unai_old_renderer",
++     "旧レンダラー", NULL, NULL, NULL, "gpu_unai",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_gpu_unai_blending",
++     "ブレンド", NULL, NULL, NULL, "gpu_unai",
++     VALS_DISABLED_ENABLED,
++     "enabled" },
++   { "pcsx_rearmed_gpu_unai_skipline",
++     "ライン省略", NULL, NULL, NULL, "gpu_unai",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_gpu_unai_lighting",
++     "ライティング", NULL, NULL, NULL, "gpu_unai",
++     VALS_DISABLED_ENABLED,
++     "enabled" },
++   { "pcsx_rearmed_gpu_unai_fast_lighting",
++     "高速ライティング", NULL, NULL, NULL, "gpu_unai",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++
++   /* ------- Additional input ------- */
++   { "pcsx_rearmed_show_input_settings",
++     "入力設定表示", NULL, NULL, NULL, "input",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_negcon_deadzone",
++     "NegCon デッドゾーン (%)", NULL, NULL, NULL, "input",
++     VALS_AUTO,
++     "0" },
++   { "pcsx_rearmed_negcon_response",
++     "NegCon ツイスト応答", NULL, NULL, NULL, "input",
++     { { "linear", "リニア" }, { "quadratic", "二次曲線" }, { "cubic", "三次曲線" }, { NULL, NULL } },
++     "linear" },
++   { "pcsx_rearmed_input_sensitivity",
++     "マウス感度", NULL, NULL, NULL, "input",
++     VALS_AUTO,
++     "1.00" },
++   { "pcsx_rearmed_crosshair1",
++     "照準表示 P1", NULL, NULL, NULL, "input",
++     { { "disabled", "無効" }, { "blue", "青" }, { "green", "緑" }, { "red", "赤" }, { "white", "白" }, { NULL, NULL } },
++     "disabled" },
++   { "pcsx_rearmed_crosshair2",
++     "照準表示 P2", NULL, NULL, NULL, "input",
++     { { "disabled", "無効" }, { "blue", "青" }, { "green", "緑" }, { "red", "赤" }, { "white", "白" }, { NULL, NULL } },
++     "disabled" },
++
++   /* ------- Gun adjustments (value arrays fall back to us) ------- */
++   { "pcsx_rearmed_konamigunadjustx",
++     "コナミガン X 調整", NULL, NULL, NULL, "input",
++     VALS_AUTO,
++     "0" },
++   { "pcsx_rearmed_konamigunadjusty",
++     "コナミガン Y 調整", NULL, NULL, NULL, "input",
++     VALS_AUTO,
++     "0" },
++   { "pcsx_rearmed_gunconadjustx",
++     "GunCon X 調整", NULL, NULL, NULL, "input",
++     VALS_AUTO,
++     "0" },
++   { "pcsx_rearmed_gunconadjusty",
++     "GunCon Y 調整", NULL, NULL, NULL, "input",
++     VALS_AUTO,
++     "0" },
++   { "pcsx_rearmed_gunconadjustratiox",
++     "GunCon X 比率", NULL, NULL, NULL, "input",
++     VALS_AUTO,
++     "1.0" },
++   { "pcsx_rearmed_gunconadjustratioy",
++     "GunCon Y 比率", NULL, NULL, NULL, "input",
++     VALS_AUTO,
++     "1.0" },
++
++   /* ------- 3DS / speed hacks ------- */
++   { "pcsx_rearmed_3ds_appcputime",
++     "3DS CPU 時間", NULL, NULL, NULL, "system",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_nocompathacks",
++     "互換性ハック無効", NULL, NULL, NULL, "compat_hack",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_nosmccheck",
++     "(スピードハック) SMC チェック無効", NULL, NULL, NULL, "speed_hack",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_gteregsunneeded",
++     "(スピードハック) GTE レジスタ不要", NULL, NULL, NULL, "speed_hack",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_nogteflags",
++     "(スピードハック) GTE フラグ無効", NULL, NULL, NULL, "speed_hack",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++   { "pcsx_rearmed_nostalls",
++     "(スピードハック) GTE ストール無効", NULL, NULL, NULL, "speed_hack",
++     VALS_DISABLED_ENABLED,
++     "disabled" },
++
++   { NULL, NULL, NULL, NULL, NULL, NULL, {{0}}, NULL },
++};
++
++struct retro_core_options_v2 options_ja = {
++   option_cats_ja,
++   option_defs_ja
++};
++
+ /* RETRO_LANGUAGE_FRENCH */
+ 
+ /* RETRO_LANGUAGE_SPANISH */
+@@ -58,10 +398,214 @@ extern "C" {
+ 
+ /* RETRO_LANGUAGE_KOREAN */
+ 
++#define VALS_KO_OFFON { { "disabled", "사용 안 함" }, { "enabled", "사용" }, { NULL, NULL } }
++#define VALS_KO_AUTO_OFFON { { "auto", "자동" }, { "disabled", "사용 안 함" }, { "enabled", "사용" }, { NULL, NULL } }
++#define VALS_KO_AUTO { { "auto", "자동" }, { NULL, NULL } }
++
++struct retro_core_option_v2_category option_cats_ko[] = {
++   { "system",      "시스템",      "지역 / BIOS / 메모리 카드 등 기본 하드웨어 설정." },
++   { "video",       "비디오",      "기본 표시 설정." },
++   { "audio",       "오디오",      "리버브 / 보간 / CD 오디오 디코딩 등 사운드 설정." },
++   { "input",       "입력",        "입력 장치 설정." },
++   { "compat_hack", "호환성 수정", "특정 게임에 필요한 설정·회피책." },
++   { "speed_hack",  "스피드 핵",   "정확도를 희생하여 성능을 높이는 핵." },
++   { NULL, NULL, NULL },
++};
++
++struct retro_core_option_v2_definition option_defs_ko[] = {
++   { "pcsx_rearmed_region", "본체 지역", NULL, NULL, NULL, "system",
++     { { "auto", "자동" }, { NULL, NULL } }, "auto" },
++   { "pcsx_rearmed_bios", "BIOS 선택", NULL, NULL, NULL, "system",
++     { { "auto", "자동" }, { NULL, NULL } }, "auto" },
++   { "pcsx_rearmed_show_bios_bootlogo", "BIOS 이름 / 부팅 로고 표시", NULL, NULL, NULL, "system",
++     { { "disabled", "사용 안 함" }, { "enabled", "사용" }, { NULL, NULL } }, "disabled" },
++   { "pcsx_rearmed_memcard2", "메모리 카드 2 (공유)", NULL, NULL, NULL, "system", VALS_KO_OFFON, "disabled" },
++   { "pcsx_rearmed_cd_readahead", "CD 미리 읽기", NULL, NULL, NULL, "system", VALS_KO_AUTO, "12" },
++   { "pcsx_rearmed_drc", "동적 재컴파일러", NULL, NULL, NULL, "system", VALS_KO_OFFON, "enabled" },
++   { "pcsx_rearmed_drc_thread", "DRC 스레드화", NULL, NULL, NULL, "system", VALS_KO_AUTO_OFFON, "auto" },
++   { "pcsx_rearmed_psxclock", "PSX CPU 클럭 (%)", NULL, NULL, NULL, "system", VALS_KO_AUTO, "auto" },
++   { "pcsx_rearmed_dithering", "디더링 패턴", NULL, NULL, NULL, "video",
++     { { "disabled", "사용 안 함" }, { "enabled", "사용" }, { "force", "강제" }, { NULL, NULL } }, "enabled" },
++   { "pcsx_rearmed_gpu_thread_rendering", "스레드 렌더링", NULL, NULL, NULL, "video", VALS_KO_AUTO_OFFON, "auto" },
++   { "pcsx_rearmed_frameskip_type", "프레임 스킵", NULL, NULL, NULL, "video",
++     { { "disabled", "사용 안 함" }, { "auto", "자동" }, { "auto_threshold", "자동 (임계값)" }, { "fixed_interval", "고정 간격" }, { NULL, NULL } }, "disabled" },
++   { "pcsx_rearmed_frameskip_threshold", "프레임 스킵 임계값 (%)", NULL, NULL, NULL, "video", VALS_KO_AUTO, "33" },
++   { "pcsx_rearmed_frameskip_interval", "프레임 스킵 간격", NULL, NULL, NULL, "video", VALS_KO_AUTO, "1" },
++   { "pcsx_rearmed_display_fps_v2", "FPS 표시", NULL, NULL, NULL, "video", VALS_KO_OFFON, "disabled" },
++   { "pcsx_rearmed_fractional_framerate", "소수 프레임 레이트", NULL, NULL, NULL, "video", VALS_KO_OFFON, "disabled" },
++   { "pcsx_rearmed_alt_flip", "대체 플립 모드", NULL, NULL, NULL, "video", VALS_KO_OFFON, "disabled" },
++   { "pcsx_rearmed_rgb32_output", "RGB32 출력", NULL, NULL, NULL, "video", VALS_KO_OFFON, "disabled" },
++   { "pcsx_rearmed_scale_hires", "고해상도 스케일링", NULL, NULL, NULL, "video", VALS_KO_OFFON, "disabled" },
++   { "pcsx_rearmed_show_overscan", "오버스캔 영역 표시", NULL, NULL, NULL, "video",
++     { { "disabled", "사용 안 함" }, { "enabled", "사용" }, { "hack", "핵" }, { NULL, NULL } }, "disabled" },
++   { "pcsx_rearmed_screen_centering", "화면 센터링", NULL, NULL, NULL, "video",
++     { { "auto", "자동" }, { "game", "게임" }, { "borders", "테두리" }, { "manual", "수동" }, { NULL, NULL } }, "auto" },
++   { "pcsx_rearmed_neon_interlace_enable_v2", "NEON 인터레이스", NULL, NULL, NULL, "video", VALS_KO_AUTO_OFFON, "auto" },
++   { "pcsx_rearmed_neon_enhancement_enable", "NEON 해상도 향상", NULL, NULL, NULL, "video", VALS_KO_OFFON, "disabled" },
++   { "pcsx_rearmed_spu_reverb", "SPU 리버브", NULL, NULL, NULL, "audio", VALS_KO_OFFON, "enabled" },
++   { "pcsx_rearmed_spu_interpolation", "SPU 보간", NULL, NULL, NULL, "audio",
++     { { "simple", "단순" }, { "gaussian", "가우시안" }, { "cubic", "3차" }, { "off", "사용 안 함" }, { NULL, NULL } }, "simple" },
++   { "pcsx_rearmed_nocdaudio", "CD 오디오", NULL, NULL, NULL, "audio", VALS_KO_OFFON, "enabled" },
++   { "pcsx_rearmed_noxadecoding", "XA 디코딩", NULL, NULL, NULL, "audio", VALS_KO_OFFON, "enabled" },
++   { "pcsx_rearmed_spu_thread", "SPU 스레드화", NULL, NULL, NULL, "audio", VALS_KO_OFFON, "disabled" },
++   { "pcsx_rearmed_analog_axis_modifier", "아날로그 축 범위", NULL, NULL, NULL, "input",
++     { { "square", "사각형" }, { "circle", "원형" }, { NULL, NULL } }, "square" },
++   { "pcsx_rearmed_vibration", "진동 효과", NULL, NULL, NULL, "input", VALS_KO_OFFON, "enabled" },
++   { "pcsx_rearmed_analog_combo", "아날로그/십자키 전환 콤보", NULL, NULL, NULL, "input",
++     { { "disabled", "사용 안 함" }, { NULL, NULL } }, "l1+r1+select" },
++   { "pcsx_rearmed_multitap", "멀티탭 모드", NULL, NULL, NULL, "input",
++     { { "auto", "자동" }, { "disabled", "사용 안 함" }, { NULL, NULL } }, "auto" },
++   { "pcsx_rearmed_icache_emulation", "명령 캐시 에뮬레이션", NULL, NULL, NULL, "compat_hack", VALS_KO_OFFON, "enabled" },
++   { "pcsx_rearmed_exception_emulation", "예외 에뮬레이션", NULL, NULL, NULL, "compat_hack", VALS_KO_OFFON, "disabled" },
++   { "pcsx_rearmed_cd_turbo", "CD 터보", NULL, NULL, NULL, "compat_hack", VALS_KO_OFFON, "disabled" },
++   { NULL, NULL, NULL, NULL, NULL, NULL, {{0}}, NULL },
++};
++
++struct retro_core_options_v2 options_ko = {
++   option_cats_ko,
++   option_defs_ko
++};
++
+ /* RETRO_LANGUAGE_CHINESE_TRADITIONAL */
+ 
++#define VALS_CHT_OFFON { { "disabled", "停用" }, { "enabled", "啟用" }, { NULL, NULL } }
++#define VALS_CHT_AUTO_OFFON { { "auto", "自動" }, { "disabled", "停用" }, { "enabled", "啟用" }, { NULL, NULL } }
++#define VALS_CHT_AUTO { { "auto", "自動" }, { NULL, NULL } }
++
++struct retro_core_option_v2_category option_cats_cht[] = {
++   { "system",      "系統",        "區域 / BIOS / 記憶卡等基本硬體設定。" },
++   { "video",       "影像",        "基本顯示設定。" },
++   { "audio",       "音訊",        "混響 / 插補 / CD 音訊解碼等音效設定。" },
++   { "input",       "輸入",        "輸入裝置設定。" },
++   { "compat_hack", "相容性修正",  "特定遊戲所需的設定與變通方法。" },
++   { "speed_hack",  "速度駭客",    "精度與穩定性為代價提升效能的駭客。" },
++   { NULL, NULL, NULL },
++};
++
++struct retro_core_option_v2_definition option_defs_cht[] = {
++   { "pcsx_rearmed_region", "主機區域", NULL, NULL, NULL, "system",
++     { { "auto", "自動" }, { NULL, NULL } }, "auto" },
++   { "pcsx_rearmed_bios", "BIOS 選擇", NULL, NULL, NULL, "system",
++     { { "auto", "自動" }, { NULL, NULL } }, "auto" },
++   { "pcsx_rearmed_show_bios_bootlogo", "BIOS 名稱 / 啟動標誌顯示", NULL, NULL, NULL, "system",
++     { { "disabled", "停用" }, { "enabled", "啟用" }, { NULL, NULL } }, "disabled" },
++   { "pcsx_rearmed_memcard2", "記憶卡 2 (共用)", NULL, NULL, NULL, "system", VALS_CHT_OFFON, "disabled" },
++   { "pcsx_rearmed_cd_readahead", "CD 預先讀取", NULL, NULL, NULL, "system", VALS_CHT_AUTO, "12" },
++   { "pcsx_rearmed_drc", "動態重編譯器", NULL, NULL, NULL, "system", VALS_CHT_OFFON, "enabled" },
++   { "pcsx_rearmed_drc_thread", "DRC 執行緒化", NULL, NULL, NULL, "system", VALS_CHT_AUTO_OFFON, "auto" },
++   { "pcsx_rearmed_psxclock", "PSX CPU 時脈 (%)", NULL, NULL, NULL, "system", VALS_CHT_AUTO, "auto" },
++   { "pcsx_rearmed_dithering", "抖動圖樣", NULL, NULL, NULL, "video",
++     { { "disabled", "停用" }, { "enabled", "啟用" }, { "force", "強制" }, { NULL, NULL } }, "enabled" },
++   { "pcsx_rearmed_gpu_thread_rendering", "執行緒渲染", NULL, NULL, NULL, "video", VALS_CHT_AUTO_OFFON, "auto" },
++   { "pcsx_rearmed_frameskip_type", "跳幀", NULL, NULL, NULL, "video",
++     { { "disabled", "停用" }, { "auto", "自動" }, { "auto_threshold", "自動 (閾值)" }, { "fixed_interval", "固定間隔" }, { NULL, NULL } }, "disabled" },
++   { "pcsx_rearmed_frameskip_threshold", "跳幀閾值 (%)", NULL, NULL, NULL, "video", VALS_CHT_AUTO, "33" },
++   { "pcsx_rearmed_frameskip_interval", "跳幀間隔", NULL, NULL, NULL, "video", VALS_CHT_AUTO, "1" },
++   { "pcsx_rearmed_display_fps_v2", "FPS 顯示", NULL, NULL, NULL, "video", VALS_CHT_OFFON, "disabled" },
++   { "pcsx_rearmed_fractional_framerate", "小數畫面播放速率", NULL, NULL, NULL, "video", VALS_CHT_OFFON, "disabled" },
++   { "pcsx_rearmed_alt_flip", "替代翻轉模式", NULL, NULL, NULL, "video", VALS_CHT_OFFON, "disabled" },
++   { "pcsx_rearmed_rgb32_output", "RGB32 輸出", NULL, NULL, NULL, "video", VALS_CHT_OFFON, "disabled" },
++   { "pcsx_rearmed_scale_hires", "高解析度縮放", NULL, NULL, NULL, "video", VALS_CHT_OFFON, "disabled" },
++   { "pcsx_rearmed_show_overscan", "過掃描區域顯示", NULL, NULL, NULL, "video",
++     { { "disabled", "停用" }, { "enabled", "啟用" }, { "hack", "駭客" }, { NULL, NULL } }, "disabled" },
++   { "pcsx_rearmed_screen_centering", "畫面置中", NULL, NULL, NULL, "video",
++     { { "auto", "自動" }, { "game", "遊戲" }, { "borders", "邊框" }, { "manual", "手動" }, { NULL, NULL } }, "auto" },
++   { "pcsx_rearmed_neon_interlace_enable_v2", "NEON 交錯", NULL, NULL, NULL, "video", VALS_CHT_AUTO_OFFON, "auto" },
++   { "pcsx_rearmed_neon_enhancement_enable", "NEON 解析度強化", NULL, NULL, NULL, "video", VALS_CHT_OFFON, "disabled" },
++   { "pcsx_rearmed_spu_reverb", "SPU 殘響", NULL, NULL, NULL, "audio", VALS_CHT_OFFON, "enabled" },
++   { "pcsx_rearmed_spu_interpolation", "SPU 插補", NULL, NULL, NULL, "audio",
++     { { "simple", "簡單" }, { "gaussian", "高斯" }, { "cubic", "三次方" }, { "off", "停用" }, { NULL, NULL } }, "simple" },
++   { "pcsx_rearmed_nocdaudio", "CD 音訊", NULL, NULL, NULL, "audio", VALS_CHT_OFFON, "enabled" },
++   { "pcsx_rearmed_noxadecoding", "XA 解碼", NULL, NULL, NULL, "audio", VALS_CHT_OFFON, "enabled" },
++   { "pcsx_rearmed_spu_thread", "SPU 執行緒化", NULL, NULL, NULL, "audio", VALS_CHT_OFFON, "disabled" },
++   { "pcsx_rearmed_analog_axis_modifier", "類比軸範圍", NULL, NULL, NULL, "input",
++     { { "square", "方形" }, { "circle", "圓形" }, { NULL, NULL } }, "square" },
++   { "pcsx_rearmed_vibration", "震動效果", NULL, NULL, NULL, "input", VALS_CHT_OFFON, "enabled" },
++   { "pcsx_rearmed_analog_combo", "類比/十字鍵切換組合鍵", NULL, NULL, NULL, "input",
++     { { "disabled", "停用" }, { NULL, NULL } }, "l1+r1+select" },
++   { "pcsx_rearmed_multitap", "多重插頭模式", NULL, NULL, NULL, "input",
++     { { "auto", "自動" }, { "disabled", "停用" }, { NULL, NULL } }, "auto" },
++   { "pcsx_rearmed_icache_emulation", "指令快取模擬", NULL, NULL, NULL, "compat_hack", VALS_CHT_OFFON, "enabled" },
++   { "pcsx_rearmed_exception_emulation", "例外模擬", NULL, NULL, NULL, "compat_hack", VALS_CHT_OFFON, "disabled" },
++   { "pcsx_rearmed_cd_turbo", "CD 加速", NULL, NULL, NULL, "compat_hack", VALS_CHT_OFFON, "disabled" },
++   { NULL, NULL, NULL, NULL, NULL, NULL, {{0}}, NULL },
++};
++
++struct retro_core_options_v2 options_cht = {
++   option_cats_cht,
++   option_defs_cht
++};
++
+ /* RETRO_LANGUAGE_CHINESE_SIMPLIFIED */
+ 
++#define VALS_CHS_OFFON { { "disabled", "禁用" }, { "enabled", "启用" }, { NULL, NULL } }
++#define VALS_CHS_AUTO_OFFON { { "auto", "自动" }, { "disabled", "禁用" }, { "enabled", "启用" }, { NULL, NULL } }
++#define VALS_CHS_AUTO { { "auto", "自动" }, { NULL, NULL } }
++
++struct retro_core_option_v2_category option_cats_chs[] = {
++   { "system",      "系统",        "区域 / BIOS / 记忆卡等基本硬件设置。" },
++   { "video",       "视频",        "基本显示设置。" },
++   { "audio",       "音频",        "混响 / 插值 / CD 音频解码等音效设置。" },
++   { "input",       "输入",        "输入设备设置。" },
++   { "compat_hack", "兼容性修正",  "特定游戏所需的设置与变通方法。" },
++   { "speed_hack",  "速度黑客",    "以精度为代价提升性能的黑客。" },
++   { NULL, NULL, NULL },
++};
++
++struct retro_core_option_v2_definition option_defs_chs[] = {
++   { "pcsx_rearmed_region", "主机区域", NULL, NULL, NULL, "system",
++     { { "auto", "自动" }, { NULL, NULL } }, "auto" },
++   { "pcsx_rearmed_bios", "BIOS 选择", NULL, NULL, NULL, "system",
++     { { "auto", "自动" }, { NULL, NULL } }, "auto" },
++   { "pcsx_rearmed_show_bios_bootlogo", "BIOS 名称 / 启动 logo 显示", NULL, NULL, NULL, "system",
++     { { "disabled", "禁用" }, { "enabled", "启用" }, { NULL, NULL } }, "disabled" },
++   { "pcsx_rearmed_memcard2", "记忆卡 2 (共享)", NULL, NULL, NULL, "system", VALS_CHS_OFFON, "disabled" },
++   { "pcsx_rearmed_cd_readahead", "CD 预先读取", NULL, NULL, NULL, "system", VALS_CHS_AUTO, "12" },
++   { "pcsx_rearmed_drc", "动态重编译器", NULL, NULL, NULL, "system", VALS_CHS_OFFON, "enabled" },
++   { "pcsx_rearmed_drc_thread", "DRC 线程化", NULL, NULL, NULL, "system", VALS_CHS_AUTO_OFFON, "auto" },
++   { "pcsx_rearmed_psxclock", "PSX CPU 时钟 (%)", NULL, NULL, NULL, "system", VALS_CHS_AUTO, "auto" },
++   { "pcsx_rearmed_dithering", "抖动图案", NULL, NULL, NULL, "video",
++     { { "disabled", "禁用" }, { "enabled", "启用" }, { "force", "强制" }, { NULL, NULL } }, "enabled" },
++   { "pcsx_rearmed_gpu_thread_rendering", "线程渲染", NULL, NULL, NULL, "video", VALS_CHS_AUTO_OFFON, "auto" },
++   { "pcsx_rearmed_frameskip_type", "跳帧", NULL, NULL, NULL, "video",
++     { { "disabled", "禁用" }, { "auto", "自动" }, { "auto_threshold", "自动 (阈值)" }, { "fixed_interval", "固定间隔" }, { NULL, NULL } }, "disabled" },
++   { "pcsx_rearmed_frameskip_threshold", "跳帧阈值 (%)", NULL, NULL, NULL, "video", VALS_CHS_AUTO, "33" },
++   { "pcsx_rearmed_frameskip_interval", "跳帧间隔", NULL, NULL, NULL, "video", VALS_CHS_AUTO, "1" },
++   { "pcsx_rearmed_display_fps_v2", "FPS 显示", NULL, NULL, NULL, "video", VALS_CHS_OFFON, "disabled" },
++   { "pcsx_rearmed_fractional_framerate", "小数帧率", NULL, NULL, NULL, "video", VALS_CHS_OFFON, "disabled" },
++   { "pcsx_rearmed_alt_flip", "替代翻转模式", NULL, NULL, NULL, "video", VALS_CHS_OFFON, "disabled" },
++   { "pcsx_rearmed_rgb32_output", "RGB32 输出", NULL, NULL, NULL, "video", VALS_CHS_OFFON, "disabled" },
++   { "pcsx_rearmed_scale_hires", "高分辨率缩放", NULL, NULL, NULL, "video", VALS_CHS_OFFON, "disabled" },
++   { "pcsx_rearmed_show_overscan", "过扫描区域显示", NULL, NULL, NULL, "video",
++     { { "disabled", "禁用" }, { "enabled", "启用" }, { "hack", "黑客" }, { NULL, NULL } }, "disabled" },
++   { "pcsx_rearmed_screen_centering", "画面居中", NULL, NULL, NULL, "video",
++     { { "auto", "自动" }, { "game", "游戏" }, { "borders", "边框" }, { "manual", "手动" }, { NULL, NULL } }, "auto" },
++   { "pcsx_rearmed_neon_interlace_enable_v2", "NEON 隔行扫描", NULL, NULL, NULL, "video", VALS_CHS_AUTO_OFFON, "auto" },
++   { "pcsx_rearmed_neon_enhancement_enable", "NEON 分辨率增强", NULL, NULL, NULL, "video", VALS_CHS_OFFON, "disabled" },
++   { "pcsx_rearmed_spu_reverb", "SPU 混响", NULL, NULL, NULL, "audio", VALS_CHS_OFFON, "enabled" },
++   { "pcsx_rearmed_spu_interpolation", "SPU 插值", NULL, NULL, NULL, "audio",
++     { { "simple", "简单" }, { "gaussian", "高斯" }, { "cubic", "三次" }, { "off", "禁用" }, { NULL, NULL } }, "simple" },
++   { "pcsx_rearmed_nocdaudio", "CD 音频", NULL, NULL, NULL, "audio", VALS_CHS_OFFON, "enabled" },
++   { "pcsx_rearmed_noxadecoding", "XA 解码", NULL, NULL, NULL, "audio", VALS_CHS_OFFON, "enabled" },
++   { "pcsx_rearmed_spu_thread", "SPU 线程化", NULL, NULL, NULL, "audio", VALS_CHS_OFFON, "disabled" },
++   { "pcsx_rearmed_analog_axis_modifier", "模拟轴范围", NULL, NULL, NULL, "input",
++     { { "square", "方形" }, { "circle", "圆形" }, { NULL, NULL } }, "square" },
++   { "pcsx_rearmed_vibration", "震动效果", NULL, NULL, NULL, "input", VALS_CHS_OFFON, "enabled" },
++   { "pcsx_rearmed_analog_combo", "模拟/方向键切换组合键", NULL, NULL, NULL, "input",
++     { { "disabled", "禁用" }, { NULL, NULL } }, "l1+r1+select" },
++   { "pcsx_rearmed_multitap", "多重插座模式", NULL, NULL, NULL, "input",
++     { { "auto", "自动" }, { "disabled", "禁用" }, { NULL, NULL } }, "auto" },
++   { "pcsx_rearmed_icache_emulation", "指令缓存仿真", NULL, NULL, NULL, "compat_hack", VALS_CHS_OFFON, "enabled" },
++   { "pcsx_rearmed_exception_emulation", "异常仿真", NULL, NULL, NULL, "compat_hack", VALS_CHS_OFFON, "disabled" },
++   { "pcsx_rearmed_cd_turbo", "CD 加速", NULL, NULL, NULL, "compat_hack", VALS_CHS_OFFON, "disabled" },
++   { NULL, NULL, NULL, NULL, NULL, NULL, {{0}}, NULL },
++};
++
++struct retro_core_options_v2 options_chs = {
++   option_cats_chs,
++   option_defs_chs
++};
++
+ /* RETRO_LANGUAGE_ESPERANTO */
+ 
+ /* RETRO_LANGUAGE_POLISH */
+@@ -535,6 +1079,14 @@ struct retro_core_options_v2 options_tr = {
+    option_defs_tr
+ };
+ 
++/* RETRO_LANGUAGE_SLOVAK */
++
++/* RETRO_LANGUAGE_PERSIAN */
++
++/* RETRO_LANGUAGE_HEBREW */
++
++/* RETRO_LANGUAGE_ASTURIAN */
++
+ #ifdef __cplusplus
+ }
+ #endif
