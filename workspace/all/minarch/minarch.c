@@ -650,6 +650,30 @@ static char* max_ff_labels[] = {
 	NULL,
 };
 
+// displayed in the Frontend settings menu; each script shown in its own writing system
+static char* language_labels[] = {
+	"English",
+	"日本語",
+	"简体中文",
+	"繁體中文",
+	"한국어",
+	"Español",
+	"Français",
+	NULL,
+};
+
+// parallel to language_labels (same order), internal codes written to lang.txt
+static const char* language_codes[] = {
+	"en",
+	"ja",
+	"zh_cn",
+	"zh_tw",
+	"ko",
+	"es",
+	"fr",
+};
+#define LANGUAGE_COUNT 7
+
 ///////////////////////////////
 
 enum {
@@ -661,6 +685,7 @@ enum {
 	FE_OPT_THREAD,
 	FE_OPT_DEBUG,
 	FE_OPT_MAXFF,
+	FE_OPT_LANGUAGE,
 	FE_OPT_COUNT,
 };
 
@@ -919,6 +944,16 @@ static struct Config {
 				.values = max_ff_labels,
 				.labels = max_ff_labels,
 			},
+			[FE_OPT_LANGUAGE] = {
+				.key	= "minarch_language",
+				.name	= "Language",
+				.desc	= "Interface language.\nFont is selected per script\n(Noto Sans CJK jp/sc/tc/kr).",
+				.default_value = 0, // en
+				.value = 0,
+				.count = LANGUAGE_COUNT,
+				.values = language_labels,
+				.labels = language_labels,
+			},
 			[FE_OPT_COUNT] = {NULL}
 		}
 	},
@@ -1016,6 +1051,20 @@ static void Config_syncFrontend(char* key, int value) {
 	else if (exactMatch(key,config.frontend.options[FE_OPT_MAXFF].key)) {
 		max_ff_speed = value;
 		i = FE_OPT_MAXFF;
+	}
+	else if (exactMatch(key,config.frontend.options[FE_OPT_LANGUAGE].key)) {
+		if (value >= 0 && value < LANGUAGE_COUNT) {
+			// persist selection for next boot
+			mkdir(SHARED_USERDATA_PATH, 0755);
+			FILE* f = fopen(SHARED_USERDATA_PATH "/lang.txt", "w");
+			if (f) {
+				fprintf(f, "%s\n", language_codes[value]);
+				fclose(f);
+			}
+			// refresh in-memory lang struct so newly rendered strings use the new language
+			Lang_init();
+		}
+		i = FE_OPT_LANGUAGE;
 	}
 	if (i==-1) return;
 	Option* option = &config.frontend.options[i];
@@ -2009,7 +2058,12 @@ static bool environment_callback(unsigned cmd, void *data) { // copied from pico
 		break;
 	}
 	// RETRO_ENVIRONMENT_SET_MEMORY_MAPS (36 | RETRO_ENVIRONMENT_EXPERIMENTAL)
-	// RETRO_ENVIRONMENT_GET_LANGUAGE 39
+	case RETRO_ENVIRONMENT_GET_LANGUAGE: { /* 39 */
+		// report OneOS lang to the core so it can return localized option strings
+		unsigned* out = (unsigned*)data;
+		if (out) *out = (unsigned)lang.retro_lang;
+		break;
+	}
 	case RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER: { /* (40 | RETRO_ENVIRONMENT_EXPERIMENTAL) */
 		// puts("RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER");
 		break;
@@ -2056,9 +2110,11 @@ static bool environment_callback(unsigned cmd, void *data) { // copied from pico
 	case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_INTL: { /* 54 */
 		// puts("RETRO_ENVIRONMENT_SET_CORE_OPTIONS_INTL");
 		const struct retro_core_options_intl *options = (const struct retro_core_options_intl *)data;
-		if (options && options->us) {
+		if (options) {
 			OptionList_reset();
-			OptionList_init(options->us);
+			// prefer the localized variant when the core provides one; fall back to us
+			if (options->local) OptionList_init(options->local);
+			else if (options->us) OptionList_init(options->us);
 		}
 		break;
 	}
@@ -3595,6 +3651,26 @@ static void OptionsMenu_localize(void) {
 	options_menu.items[2].name = (char*)lang.controls;
 	options_menu.items[3].name = (char*)lang.shortcuts;
 	options_menu.items[4].name = (char*)lang.save_changes;
+
+	// detect current language and set Frontend > Language default
+	FILE* lf = fopen(SHARED_USERDATA_PATH "/lang.txt", "r");
+	if (lf) {
+		char code[16] = {0};
+		if (fgets(code, sizeof(code), lf)) {
+			for (int i = (int)strlen(code) - 1; i >= 0; i--) {
+				if (code[i] == '\n' || code[i] == '\r' || code[i] == ' ') code[i] = '\0';
+				else break;
+			}
+			for (int i = 0; i < LANGUAGE_COUNT; i++) {
+				if (strcmp(code, language_codes[i]) == 0) {
+					config.frontend.options[FE_OPT_LANGUAGE].value = i;
+					config.frontend.options[FE_OPT_LANGUAGE].default_value = i;
+					break;
+				}
+			}
+		}
+		fclose(lf);
+	}
 }
 
 static void OptionSaveChanges_updateDesc(void) {
@@ -4446,7 +4522,7 @@ static void Menu_loop(void) {
 			SDL_FreeSurface(text);
 			
 			if (show_setting && !GetHDMI()) GFX_blitHardwareHints(screen, show_setting);
-			else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP", NULL }, 0, screen, 0);
+			else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?(char*)lang.power:"MENU",(char*)lang.sleep, NULL }, 0, screen, 0);
 			GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
 			
 			// list

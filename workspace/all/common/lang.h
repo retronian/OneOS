@@ -11,10 +11,25 @@
 typedef struct {
 	// font path for this language (full path under RES_PATH)
 	const char* font_path;
-	// button labels (api.c, minui.c)
+	// libretro language id (enum retro_language), used to query localized core options
+	int retro_lang;
+	// button labels (api.c, minui.c) — upper case in upstream
 	const char* resume;
 	const char* brightness;
 	const char* volume;
+	const char* power;
+	const char* sleep;
+	const char* info;
+	const char* back;
+	const char* open;
+	// status / messages (minui.c)
+	const char* empty_folder;
+	// root entries (minui.c)
+	const char* recently_played;
+	const char* collections;
+	const char* tools;
+	const char* settings;
+	const char* language;
 	// in-game menu (minarch.c top-level)
 	const char* continue_;
 	const char* save;

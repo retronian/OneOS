@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <msettings.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <dirent.h>
 #include <ctype.h>
 #include <unistd.h>
@@ -119,6 +120,13 @@ typedef struct Entry {
 static Entry* Entry_new(char* path, int type) {
 	char display_name[256];
 	getDisplayName(path, display_name);
+
+	// localize well-known root entries
+	if (exactMatch(path, FAUX_RECENT_PATH)) strcpy(display_name, lang.recently_played);
+	else if (exactMatch(path, COLLECTIONS_PATH)) strcpy(display_name, lang.collections);
+	else if (exactMatch(path, SETTINGS_PATH)) strcpy(display_name, lang.settings);
+	else if (suffixMatch("/Tools/" PLATFORM, path)) strcpy(display_name, lang.tools);
+
 	Entry* self = malloc(sizeof(Entry));
 	self->path = strdup(path);
 	self->name = strdup(display_name);
@@ -331,7 +339,13 @@ static Array* getEntries(char* path);
 static Directory* Directory_new(char* path, int selected) {
 	char display_name[256];
 	getDisplayName(path, display_name);
-	
+
+	// localize well-known root entries (see Entry_new)
+	if (exactMatch(path, FAUX_RECENT_PATH)) strcpy(display_name, lang.recently_played);
+	else if (exactMatch(path, COLLECTIONS_PATH)) strcpy(display_name, lang.collections);
+	else if (exactMatch(path, SETTINGS_PATH)) strcpy(display_name, lang.settings);
+	else if (suffixMatch("/Tools/" PLATFORM, path)) strcpy(display_name, lang.tools);
+
 	Directory* self = malloc(sizeof(Directory));
 	self->path = strdup(path);
 	self->name = strdup(display_name);
@@ -749,7 +763,10 @@ static Array* getRoot(void) {
 	
 	char* tools_path = SDCARD_PATH "/Tools/" PLATFORM;
 	if (exists(tools_path) && !simple_mode) Array_push(root, Entry_new(tools_path, ENTRY_DIR));
-	
+
+	// OneOS settings entry (virtual — opens an in-minui settings menu)
+	Array_push(root, Entry_new(SETTINGS_PATH, ENTRY_DIR));
+
 	return root;
 }
 static Array* getRecents(void) {
@@ -1136,6 +1153,135 @@ static void openRom(char* path, char* last) {
 	sprintf(cmd, "'%s' '%s'", escapeSingleQuotes(emu_path), escapeSingleQuotes(sd_path));
 	queueNext(cmd);
 }
+// OneOS settings screen (launcher-side, no game required).
+// For now, presents a single option: language selection.
+static const char* settings_lang_codes[] = {
+	"en", "ja", "zh_cn", "zh_tw", "ko", "es", "fr",
+};
+static const char* settings_lang_labels[] = {
+	"English",
+	"日本語",
+	"简体中文",
+	"繁體中文",
+	"한국어",
+	"Español",
+	"Français",
+};
+#define SETTINGS_LANG_COUNT 7
+
+static void openSettings(SDL_Surface* screen) {
+	// determine currently selected language index
+	int selected = 0;
+	{
+		FILE* f = fopen(SHARED_USERDATA_PATH "/lang.txt", "r");
+		if (f) {
+			char code[16] = {0};
+			if (fgets(code, sizeof(code), f)) {
+				for (int i = (int)strlen(code) - 1; i >= 0; i--) {
+					if (code[i] == '\n' || code[i] == '\r' || code[i] == ' ') code[i] = '\0';
+					else break;
+				}
+				for (int i = 0; i < SETTINGS_LANG_COUNT; i++) {
+					if (strcmp(code, settings_lang_codes[i]) == 0) {
+						selected = i;
+						break;
+					}
+				}
+			}
+			fclose(f);
+		}
+	}
+
+	int quit = 0;
+	int dirty = 1;
+	while (!quit) {
+		GFX_startFrame();
+		PAD_poll();
+
+		if (PAD_justRepeated(BTN_UP)) {
+			selected--;
+			if (selected < 0) selected = SETTINGS_LANG_COUNT - 1;
+			dirty = 1;
+		}
+		else if (PAD_justRepeated(BTN_DOWN)) {
+			selected++;
+			if (selected >= SETTINGS_LANG_COUNT) selected = 0;
+			dirty = 1;
+		}
+		else if (PAD_justPressed(BTN_A)) {
+			// persist selection and update in-memory state
+			mkdir(SHARED_USERDATA_PATH, 0755);
+			FILE* f = fopen(SHARED_USERDATA_PATH "/lang.txt", "w");
+			if (f) {
+				fprintf(f, "%s\n", settings_lang_codes[selected]);
+				fclose(f);
+			}
+			Lang_init();
+
+			// rebuild the current directory so localized entry names refresh
+			if (top) {
+				char cur_path[256];
+				int cur_sel = top->selected;
+				strcpy(cur_path, top->path);
+				Directory_free(top);
+				stack->items[stack->count - 1] = Directory_new(cur_path, cur_sel);
+				top = stack->items[stack->count - 1];
+			}
+			quit = 1;
+		}
+		else if (PAD_justPressed(BTN_B)) {
+			quit = 1;
+		}
+
+		if (dirty) {
+			GFX_clear(screen);
+
+			// header (hardware hints like main launcher)
+			GFX_blitHardwareGroup(screen, 0);
+
+			// compute scroll window so the selected item is always visible
+			int visible = MAIN_ROW_COUNT;
+			int view_start = 0;
+			if (SETTINGS_LANG_COUNT > visible) {
+				view_start = selected - visible / 2;
+				if (view_start < 0) view_start = 0;
+				if (view_start + visible > SETTINGS_LANG_COUNT) view_start = SETTINGS_LANG_COUNT - visible;
+			}
+			int view_end = view_start + visible;
+			if (view_end > SETTINGS_LANG_COUNT) view_end = SETTINGS_LANG_COUNT;
+
+			int y_start = SCALE1(PADDING);
+			for (int i = view_start; i < view_end; i++) {
+				int j = i - view_start;
+				int y = y_start + j * SCALE1(PILL_SIZE);
+				SDL_Color color = COLOR_WHITE;
+				if (i == selected) {
+					GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
+						SCALE1(PADDING),
+						y,
+						SCALE1(260),
+						SCALE1(PILL_SIZE)
+					});
+					color = COLOR_BLACK;
+				}
+				SDL_Surface* text = TTF_RenderUTF8_Blended(font.large, settings_lang_labels[i], color);
+				SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
+					SCALE1(PADDING + BUTTON_PADDING),
+					y + SCALE1(4)
+				});
+				SDL_FreeSurface(text);
+			}
+
+			// footer buttons
+			GFX_blitButtonGroup((char*[]){ "B",(char*)lang.back, "A",(char*)lang.save, NULL }, 1, screen, 1);
+
+			GFX_flip(screen);
+			dirty = 0;
+		}
+		else GFX_sync();
+	}
+}
+
 static void openDirectory(char* path, int auto_launch) {
 	char auto_path[256];
 	if (hasCue(path, auto_path) && auto_launch) {
@@ -1183,7 +1329,13 @@ static void closeDirectory(void) {
 	restore_relative = top->selected;
 }
 
-static void Entry_open(Entry* self) {
+static void Entry_open(Entry* self, SDL_Surface* screen) {
+	// OneOS virtual settings entry: intercept before directory handling
+	if (exactMatch(self->path, SETTINGS_PATH)) {
+		openSettings(screen);
+		return;
+	}
+
 	recent_alias = self->name;  // yiiikes
 	if (self->type==ENTRY_ROM) {
 		char *last = NULL;
@@ -1465,11 +1617,11 @@ int main (int argc, char *argv[]) {
 
 			if (total>0 && can_resume && PAD_justReleased(BTN_RESUME)) {
 				should_resume = 1;
-				Entry_open(top->entries->items[top->selected]);
+				Entry_open(top->entries->items[top->selected], screen);
 				dirty = 1;
 			}
 			else if (total>0 && PAD_justPressed(BTN_A)) {
-				Entry_open(top->entries->items[top->selected]);
+				Entry_open(top->entries->items[top->selected], screen);
 				total = top->entries->count;
 				dirty = 1;
 
@@ -1581,7 +1733,7 @@ int main (int argc, char *argv[]) {
 				
 				// buttons (duped and trimmed from below)
 				if (show_setting && !GetHDMI()) GFX_blitHardwareHints(screen, show_setting);
-				else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP",  NULL }, 0, screen, 0);
+				else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?(char*)lang.power:"MENU",(char*)lang.sleep,  NULL }, 0, screen, 0);
 				
 				GFX_blitButtonGroup((char*[]){ "B","BACK",  NULL }, 0, screen, 1);
 			}
@@ -1645,28 +1797,28 @@ int main (int argc, char *argv[]) {
 				}
 				else {
 					// TODO: for some reason screen's dimensions end up being 0x0 in GFX_blitMessage...
-					GFX_blitMessage(font.large, "Empty folder", screen, &(SDL_Rect){0,0,screen->w,screen->h}); //, NULL);
+					GFX_blitMessage(font.large, (char*)lang.empty_folder, screen, &(SDL_Rect){0,0,screen->w,screen->h}); //, NULL);
 				}
 			
 				// buttons
 				if (show_setting && !GetHDMI()) GFX_blitHardwareHints(screen, show_setting);
 				else if (can_resume) GFX_blitButtonGroup((char*[]){ "X",(char*)lang.resume,  NULL }, 0, screen, 0);
-				else GFX_blitButtonGroup((char*[]){ 
-					BTN_SLEEP==BTN_POWER?"POWER":"MENU",
-					BTN_SLEEP==BTN_POWER||simple_mode?"SLEEP":"INFO",  
+				else GFX_blitButtonGroup((char*[]){
+					BTN_SLEEP==BTN_POWER?(char*)lang.power:"MENU",
+					BTN_SLEEP==BTN_POWER||simple_mode?(char*)lang.sleep:(char*)lang.info,
 					NULL }, 0, screen, 0);
 			
 				if (total==0) {
 					if (stack->count>1) {
-						GFX_blitButtonGroup((char*[]){ "B","BACK",  NULL }, 0, screen, 1);
+						GFX_blitButtonGroup((char*[]){ "B",(char*)lang.back,  NULL }, 0, screen, 1);
 					}
 				}
 				else {
 					if (stack->count>1) {
-						GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OPEN", NULL }, 1, screen, 1);
+						GFX_blitButtonGroup((char*[]){ "B",(char*)lang.back, "A",(char*)lang.open, NULL }, 1, screen, 1);
 					}
 					else {
-						GFX_blitButtonGroup((char*[]){ "A","OPEN", NULL }, 0, screen, 1);
+						GFX_blitButtonGroup((char*[]){ "A",(char*)lang.open, NULL }, 0, screen, 1);
 					}
 				}
 			}
