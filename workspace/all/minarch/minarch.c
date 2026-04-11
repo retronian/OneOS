@@ -597,6 +597,11 @@ typedef struct Option {
 	int lock;
 	char** values;
 	char** labels;
+	// v2 core options only: category_key references a category defined in
+	// the core's category array. OneOS stores the category display name
+	// (translated if available) for grouped rendering.
+	char* category_key;
+	char* category_name;
 } Option;
 typedef struct OptionList {
 	int count;
@@ -1647,10 +1652,32 @@ static void OptionList_initFromIntl(
 }
 
 // v2 variant: takes retro_core_option_v2_definition (adds category_key,
-// desc_categorized, info_categorized - ignored here). Categories themselves
-// are not yet used by the minarch UI, but v2 option definitions are.
+// desc_categorized, info_categorized). Stores category_key + category name
+// for grouped rendering in the Emulator menu.
+static const char* CategoryList_findName(
+    const struct retro_core_option_v2_category *cats, const char *key)
+{
+	if (!cats || !key) return NULL;
+	for (int i=0; cats[i].key; i++) {
+		if (strcmp(cats[i].key, key) == 0) return cats[i].desc;
+	}
+	return NULL;
+}
+
+// Back-compat wrapper that takes just definitions (no categories).
+static void OptionList_initV2Full(
+    const struct retro_core_option_v2_definition *defs,
+    const struct retro_core_option_v2_category *cats);
+
 static void OptionList_initV2(const struct retro_core_option_v2_definition *defs) {
-	LOG_info("OptionList_initV2\n");
+	OptionList_initV2Full(defs, NULL);
+}
+
+static void OptionList_initV2Full(
+    const struct retro_core_option_v2_definition *defs,
+    const struct retro_core_option_v2_category *cats)
+{
+	LOG_info("OptionList_initV2Full\n");
 	int count;
 	for (count=0; defs[count].key; count++);
 
@@ -1667,6 +1694,20 @@ static void OptionList_initV2(const struct retro_core_option_v2_definition *defs
 		len = strlen(def->key) + 1;
 		item->key = calloc(len, sizeof(char));
 		strcpy(item->key, def->key);
+
+		// category
+		if (def->category_key) {
+			len = strlen(def->category_key) + 1;
+			item->category_key = calloc(len, sizeof(char));
+			strcpy(item->category_key, def->category_key);
+
+			const char *cname = CategoryList_findName(cats, def->category_key);
+			if (cname) {
+				len = strlen(cname) + 1;
+				item->category_name = calloc(len, sizeof(char));
+				strcpy(item->category_name, cname);
+			}
+		}
 
 		len = strlen(def->desc) + 1;
 		item->name = calloc(len, sizeof(char));
@@ -1713,13 +1754,16 @@ static void OptionList_initV2(const struct retro_core_option_v2_definition *defs
 
 // v2 merge variant. Same semantics as OptionList_initFromIntl but operates
 // on retro_core_option_v2_definition arrays. Missing keys fall back to us.
+// us_cats / local_cats provide category name translations (either may be NULL).
 static void OptionList_initV2FromIntl(
     const struct retro_core_option_v2_definition *us,
-    const struct retro_core_option_v2_definition *local)
+    const struct retro_core_option_v2_definition *local,
+    const struct retro_core_option_v2_category *us_cats,
+    const struct retro_core_option_v2_category *local_cats)
 {
 	LOG_info("OptionList_initV2FromIntl\n");
 	if (!us) return;
-	if (!local) { OptionList_initV2(us); return; }
+	if (!local) { OptionList_initV2Full(us, us_cats); return; }
 
 	int count;
 	for (count=0; us[count].key; count++);
@@ -1746,6 +1790,21 @@ static void OptionList_initV2FromIntl(
 		len = strlen(def->key) + 1;
 		item->key = calloc(len, sizeof(char));
 		strcpy(item->key, def->key);
+
+		// category: key from us, display name prefer local category translation
+		if (def->category_key) {
+			len = strlen(def->category_key) + 1;
+			item->category_key = calloc(len, sizeof(char));
+			strcpy(item->category_key, def->category_key);
+
+			const char *cname = CategoryList_findName(local_cats, def->category_key);
+			if (!cname) cname = CategoryList_findName(us_cats, def->category_key);
+			if (cname) {
+				len = strlen(cname) + 1;
+				item->category_name = calloc(len, sizeof(char));
+				strcpy(item->category_name, cname);
+			}
+		}
 
 		const char *src_desc = (tdef && tdef->desc) ? tdef->desc : def->desc;
 		len = strlen(src_desc) + 1;
@@ -2383,7 +2442,7 @@ static bool environment_callback(unsigned cmd, void *data) { // copied from pico
 		const struct retro_core_options_v2 *options = (const struct retro_core_options_v2 *)data;
 		if (options && options->definitions) {
 			OptionList_reset();
-			OptionList_initV2(options->definitions);
+			OptionList_initV2Full(options->definitions, options->categories);
 		}
 		// Returning false tells the core that categories are NOT supported;
 		// the core will then use retro_core_option_v2_definition::desc
@@ -2398,7 +2457,9 @@ static bool environment_callback(unsigned cmd, void *data) { // copied from pico
 			// Merge: prefer translated definitions, fall back to us for missing keys.
 			OptionList_initV2FromIntl(
 				options->us->definitions,
-				options->local ? options->local->definitions : NULL);
+				options->local ? options->local->definitions : NULL,
+				options->us->categories,
+				options->local ? options->local->categories : NULL);
 		}
 		return false;
 	}
@@ -3619,6 +3680,19 @@ static MenuList OptionEmulator_menu = {
 	.on_change = OptionEmulator_optionChanged,
 	.items = NULL,
 };
+// Sort Option* pointers so that options sharing the same category_key
+// appear together. Options without a category (NULL) come last.
+static int Option_ptrCategoryCmp(const void *a, const void *b) {
+	const Option *oa = *(const Option *const *)a;
+	const Option *ob = *(const Option *const *)b;
+	const char *ka = oa->category_key;
+	const char *kb = ob->category_key;
+	if (!ka && !kb) return 0;
+	if (!ka) return 1;  // NULL last
+	if (!kb) return -1;
+	return strcmp(ka, kb);
+}
+
 static int OptionEmulator_openMenu(MenuList* list, int i) {
 	if (OptionEmulator_menu.items==NULL) {
 		// TODO: where do I free this? I guess I don't :sweat_smile:
@@ -3636,6 +3710,11 @@ static int OptionEmulator_openMenu(MenuList* list, int i) {
 				config.core.enabled_options[j] = item;
 				j += 1;
 			}
+			// Group options by category (v2 cores) while preserving the
+			// original US definition order within each group via stable sort.
+			// qsort is not guaranteed stable, but for short lists this is fine
+			// — we prioritize category grouping over strict order preservation.
+			qsort(config.core.enabled_options, enabled_count, sizeof(Option*), Option_ptrCategoryCmp);
 		}
 		
 		OptionEmulator_menu.items = calloc(config.core.enabled_count+1, sizeof(MenuItem));
