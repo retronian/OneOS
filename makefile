@@ -48,7 +48,7 @@ system:
 	# populate system
 	cp ./workspace/$(PLATFORM)/keymon/keymon.elf ./build/SYSTEM/$(PLATFORM)/bin/
 	cp ./workspace/$(PLATFORM)/libmsettings/libmsettings.so ./build/SYSTEM/$(PLATFORM)/lib
-	cp ./workspace/all/minui/build/$(PLATFORM)/minui.elf ./build/SYSTEM/$(PLATFORM)/bin/
+	cp ./workspace/all/oneos/build/$(PLATFORM)/oneos.elf ./build/SYSTEM/$(PLATFORM)/bin/
 	cp ./workspace/all/minarch/build/$(PLATFORM)/minarch.elf ./build/SYSTEM/$(PLATFORM)/bin/
 	cp ./workspace/all/syncsettings/build/$(PLATFORM)/syncsettings.elf ./build/SYSTEM/$(PLATFORM)/bin/
 	cp ./workspace/all/say/build/$(PLATFORM)/say.elf ./build/SYSTEM/$(PLATFORM)/bin/
@@ -135,11 +135,11 @@ package: tidy
 	mv ./build/SYSTEM ./build/PAYLOAD/.system
 	cp -R ./build/BOOT/.tmp_update ./build/PAYLOAD/
 
-	cd ./build/PAYLOAD && zip -r MinUI.zip .system .tmp_update
-	mv ./build/PAYLOAD/MinUI.zip ./build/BASE
+	cd ./build/PAYLOAD && zip -r OneOS.zip .system .tmp_update
+	mv ./build/PAYLOAD/OneOS.zip ./build/BASE
 
 	# single zip (Tools now lives under BASE)
-	cd ./build/BASE && zip -r ../../releases/$(RELEASE_NAME)-base.zip Bios Roms Saves Tools miyoo miyoo354 trimui rg35xx rg35xxplus gkdpixel miyoo355 magicx miyoo285 em_ui.sh MinUI.zip README.txt
+	cd ./build/BASE && zip -r ../../releases/$(RELEASE_NAME)-base.zip Bios Roms Saves Tools miyoo miyoo354 trimui rg35xx rg35xxplus gkdpixel miyoo355 magicx miyoo285 em_ui.sh OneOS.zip README.txt
 	echo "$(RELEASE_NAME)" > ./build/latest.txt
 	
 ###########################################################

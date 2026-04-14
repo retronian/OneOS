@@ -1,23 +1,23 @@
 #!/bin/bash
-# Build minui for Linux dev simulator
+# Build OneOS for Linux dev simulator
 set -e
 
 cd "$(dirname "$0")"
 ROOT="$(cd ../.. && pwd)"
 
-mkdir -p ../all/minui/build/linux
+mkdir -p ../all/oneos/build/linux
 
 BUILD_DATE=$(date +%Y%m%d)
 BUILD_HASH=$(cd "$ROOT" && git rev-parse --short HEAD 2>/dev/null || echo dev)
 
 gcc \
-    ../all/minui/minui.c \
+    ../all/oneos/oneos.c \
     ../all/common/api.c \
     ../all/common/scaler.c \
     ../all/common/utils.c \
     ../all/common/lang.c \
     ./platform/platform.c \
-    -o ../all/minui/build/linux/minui \
+    -o ../all/oneos/build/linux/oneos \
     -I. \
     -I./platform \
     -I../all/common \
@@ -34,5 +34,5 @@ gcc \
     -Wno-format-truncation
 
 echo ""
-echo "Built: ../all/minui/build/linux/minui"
-echo "Run with: ./run-minui.sh"
+echo "Built: ../all/oneos/build/linux/oneos"
+echo "Run with: ./run-oneos.sh"
