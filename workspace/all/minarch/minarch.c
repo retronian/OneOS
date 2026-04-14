@@ -852,10 +852,10 @@ enum {
 
 static inline char* getScreenScalingDesc(void) {
 	if (GFX_supportsOverscan()) {
-		return "Native uses integer scaling. Aspect uses core\nreported aspect ratio. Fullscreen has non-square\npixels. Cropped is integer scaled then cropped.";
+		return (char*)lang.fe_desc_scaling_full;
 	}
 	else {
-		return "Native uses integer scaling.\nAspect uses core reported aspect ratio.\nFullscreen has non-square pixels.";
+		return (char*)lang.fe_desc_scaling_short;
 	}
 }
 static inline int getScreenScalingCount(void) {
@@ -979,6 +979,7 @@ static struct Config {
 	},
 	.controls = default_button_mapping,
 	.shortcuts = (ButtonMapping[]){
+		// name is overwritten with the localized string in Config_syncLang()
 		[SHORTCUT_SAVE_STATE]			= {"Save State",		-1, BTN_ID_NONE, 0},
 		[SHORTCUT_LOAD_STATE]			= {"Load State",		-1, BTN_ID_NONE, 0},
 		[SHORTCUT_RESET_GAME]			= {"Reset Game",		-1, BTN_ID_NONE, 0},
@@ -990,6 +991,9 @@ static struct Config {
 		{NULL}
 	},
 };
+// Forward declaration; body is defined after OptionControls_menu /
+// OptionShortcuts_menu so it can reference them directly.
+static void Config_syncLang(void);
 static int Config_getValue(char* cfg, const char* key, char* out_value, int* lock) { // gets value from string
 	char* tmp = cfg;
 	while ((tmp = strstr(tmp, key))) {
@@ -1077,6 +1081,7 @@ static void Config_syncFrontend(char* key, int value) {
 			}
 			// refresh in-memory lang struct so newly rendered strings use the new language
 			Lang_init();
+			Config_syncLang();
 		}
 		i = FE_OPT_LANGUAGE;
 	}
@@ -2034,6 +2039,19 @@ static int setFastForward(int enable) {
 
 static uint32_t buttons = 0; // RETRO_DEVICE_ID_JOYPAD_* buttons
 static int ignore_menu = 0;
+
+// MENU + SELECT saves a BMP screenshot of whatever surface is currently
+// on screen. Works from gameplay, minarch menus, and state/save previews
+// because they all share the same `screen` surface. Call immediately
+// after PAD_poll() so the input state is fresh.
+static int checkScreenshotCombo(void) {
+	if (PAD_isPressed(BTN_SELECT) && PAD_justPressed(BTN_START)) {
+		GFX_screenshot(screen);
+		return 1;
+	}
+	return 0;
+}
+
 static void input_poll_callback(void) {
 	PAD_poll();
 
@@ -2045,6 +2063,10 @@ static void input_poll_callback(void) {
 		ignore_menu = 0;
 	}
 	if (PAD_isPressed(BTN_MENU) && (PAD_isPressed(BTN_PLUS) || PAD_isPressed(BTN_MINUS))) {
+		ignore_menu = 1;
+	}
+	// MENU + SELECT: capture a BMP screenshot of the current frame.
+	if (checkScreenshotCombo()) {
 		ignore_menu = 1;
 	}
 	
@@ -3592,6 +3614,7 @@ static int Menu_message(char* message, char** pairs) {
 	while (1) {
 		GFX_startFrame();
 		PAD_poll();
+		checkScreenshotCombo();
 
 		if (PAD_justPressed(BTN_A) || PAD_justPressed(BTN_B)) break;
 		
@@ -3686,7 +3709,7 @@ static int OptionEmulator_optionChanged(MenuList* list, int i) {
 static int OptionEmulator_optionDetail(MenuList* list, int i) {
 	MenuItem* item = &list->items[i];
 	Option* option = OptionList_getOption(&config.core, item->key);
-	if (option->full) return Menu_message(option->full, (char*[]){ "B","BACK", NULL });
+	if (option->full) return Menu_message(option->full, (char*[]){ "B",(char*)lang.back, NULL });
 	else return MENU_CALLBACK_NOP;
 }
 static MenuList OptionEmulator_menu = {
@@ -3776,7 +3799,7 @@ static int OptionEmulator_openMenu(MenuList* list, int i) {
 		Menu_options(&OptionEmulator_menu);
 	}
 	else {
-		Menu_message("This core has no options.", (char*[]){ "B","BACK", NULL });
+		Menu_message((char*)lang.no_core_options, (char*[]){ "B",(char*)lang.back, NULL });
 	}
 	
 	return MENU_CALLBACK_NOP;
@@ -3839,9 +3862,7 @@ static int OptionControls_optionChanged(MenuList* list, int i) {
 }
 static MenuList OptionControls_menu = {
 	.type = MENU_INPUT,
-	.desc = "Press A to set and X to clear."
-		"\nSupports single button and MENU+button." // TODO: not supported on nano because POWER doubles as MENU
-	,
+	// .desc is populated at runtime in Config_syncLang()
 	.on_confirm = OptionControls_bind,
 	.on_change = OptionControls_unbind,
 	.items = NULL
@@ -3939,18 +3960,16 @@ static int OptionShortcuts_unbind(MenuList* list, int i) {
 }
 static MenuList OptionShortcuts_menu = {
 	.type = MENU_INPUT,
-	.desc = "Press A to set and X to clear." 
-		"\nSupports single button and MENU+button." // TODO: not supported on nano because POWER doubles as MENU
-	,
+	// .desc is populated at runtime in Config_syncLang()
 	.on_confirm = OptionShortcuts_bind,
 	.on_change = OptionShortcuts_unbind,
 	.items = NULL
 };
 static char* getSaveDesc(void) {
 	switch (config.loaded) {
-		case CONFIG_NONE:		return "Using defaults."; break;
-		case CONFIG_CONSOLE:	return "Using console config."; break;
-		case CONFIG_GAME:		return "Using game config."; break;
+		case CONFIG_NONE:		return (char*)lang.using_defaults; break;
+		case CONFIG_CONSOLE:	return (char*)lang.using_console_cfg; break;
+		case CONFIG_GAME:		return (char*)lang.using_game_cfg; break;
 	}
 	return NULL;
 }
@@ -4003,7 +4022,7 @@ static int OptionSaveChanges_onConfirm(MenuList* list, int i) {
 			break;
 		}
 	}
-	Menu_message(message, (char*[]){ "A","OKAY", NULL });
+	Menu_message(message, (char*[]){ "A",(char*)lang.okay, NULL });
 	OptionSaveChanges_updateDesc();
 	return MENU_CALLBACK_EXIT;
 }
@@ -4022,6 +4041,44 @@ static int OptionSaveChanges_openMenu(MenuList* list, int i) {
 	OptionSaveChanges_menu.desc = getSaveDesc();
 	Menu_options(&OptionSaveChanges_menu);
 	return MENU_CALLBACK_NOP;
+}
+
+static void Config_syncLang(void) {
+	// Shortcut names
+	config.shortcuts[SHORTCUT_SAVE_STATE].name  = (char*)lang.save_state;
+	config.shortcuts[SHORTCUT_LOAD_STATE].name  = (char*)lang.load_state;
+	config.shortcuts[SHORTCUT_RESET_GAME].name  = (char*)lang.reset_game;
+	config.shortcuts[SHORTCUT_SAVE_QUIT].name   = (char*)lang.save_quit;
+	config.shortcuts[SHORTCUT_CYCLE_SCALE].name = (char*)lang.cycle_scale;
+	config.shortcuts[SHORTCUT_CYCLE_EFFECT].name= (char*)lang.cycle_effect;
+	config.shortcuts[SHORTCUT_TOGGLE_FF].name   = (char*)lang.toggle_ff;
+	config.shortcuts[SHORTCUT_HOLD_FF].name     = (char*)lang.hold_ff;
+	// Frontend option names
+	config.frontend.options[FE_OPT_SCALING].name    = (char*)lang.fe_screen_scaling;
+	config.frontend.options[FE_OPT_EFFECT].name     = (char*)lang.fe_screen_effect;
+	config.frontend.options[FE_OPT_SHARPNESS].name  = (char*)lang.fe_screen_sharpness;
+	config.frontend.options[FE_OPT_TEARING].name    = (char*)lang.fe_prevent_tearing;
+	config.frontend.options[FE_OPT_OVERCLOCK].name  = (char*)lang.fe_cpu_speed;
+	config.frontend.options[FE_OPT_THREAD].name     = (char*)lang.fe_prioritize_audio;
+	config.frontend.options[FE_OPT_DEBUG].name      = (char*)lang.fe_debug_hud;
+	config.frontend.options[FE_OPT_MAXFF].name      = (char*)lang.fe_max_ff_speed;
+	config.frontend.options[FE_OPT_LANGUAGE].name   = (char*)lang.language;
+	// Frontend option descriptions (SCALING uses getScreenScalingDesc())
+	config.frontend.options[FE_OPT_EFFECT].desc     = (char*)lang.fe_desc_effect;
+	config.frontend.options[FE_OPT_SHARPNESS].desc  = (char*)lang.fe_desc_sharpness;
+	config.frontend.options[FE_OPT_TEARING].desc    = (char*)lang.fe_desc_tearing;
+	config.frontend.options[FE_OPT_OVERCLOCK].desc  = (char*)lang.fe_desc_cpu;
+	config.frontend.options[FE_OPT_THREAD].desc     = (char*)lang.fe_desc_audio;
+	config.frontend.options[FE_OPT_DEBUG].desc      = (char*)lang.fe_desc_debug;
+	config.frontend.options[FE_OPT_MAXFF].desc      = (char*)lang.fe_desc_maxff;
+	config.frontend.options[FE_OPT_LANGUAGE].desc   = (char*)lang.fe_desc_language;
+	// Controls / Shortcuts input menu hints
+	OptionControls_menu.desc  = (char*)lang.press_a_to_set_x_to_clear;
+	OptionShortcuts_menu.desc = (char*)lang.press_a_to_set_x_to_clear;
+	// Save-changes submenu item names
+	OptionSaveChanges_menu.items[0].name = (char*)lang.save_for_console;
+	OptionSaveChanges_menu.items[1].name = (char*)lang.save_for_game;
+	OptionSaveChanges_menu.items[2].name = (char*)lang.restore_defaults;
 }
 
 static int OptionQuicksave_onConfirm(MenuList* list, int i) {
@@ -4120,7 +4177,8 @@ static int Menu_options(MenuList* list) {
 		
 		GFX_startFrame();
 		PAD_poll();
-		
+		checkScreenshotCombo();
+
 		if (PAD_justRepeated(BTN_UP)) {
 			selected -= 1;
 			if (selected<0) {
@@ -4779,7 +4837,8 @@ static void Menu_loop(void) {
 		uint32_t now = SDL_GetTicks();
 
 		PAD_poll();
-		
+		checkScreenshotCombo();
+
 		if (PAD_justPressed(BTN_UP)) {
 			selected -= 1;
 			if (selected<0) selected += MENU_ITEM_COUNT;
@@ -4921,7 +4980,7 @@ static void Menu_loop(void) {
 			
 			if (show_setting && !GetHDMI()) GFX_blitHardwareHints(screen, show_setting);
 			else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?(char*)lang.power:"MENU",(char*)lang.sleep, NULL }, 0, screen, 0);
-			GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
+			GFX_blitButtonGroup((char*[]){ "B",(char*)lang.back, "A",(char*)lang.okay, NULL }, 1, screen, 1);
 			
 			// list
 			oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
@@ -5011,7 +5070,7 @@ static void Menu_loop(void) {
 					SDL_Rect preview_rect = {ox,oy,hw,hh};
 					SDL_FillRect(screen, &preview_rect, 0);
 					if (menu.save_exists) GFX_blitMessage(font.large, "No Preview", screen, &preview_rect);
-					else GFX_blitMessage(font.large, "Empty Slot", screen, &preview_rect);
+					else GFX_blitMessage(font.large, (char*)lang.empty_slot, screen, &preview_rect);
 				}
 				
 				// pagination
@@ -5178,6 +5237,7 @@ int main(int argc , char* argv[]) {
 	LOG_info("rom_path: %s\n", rom_path);
 
 	screen = GFX_init(MODE_MENU);
+	Config_syncLang();
 	PAD_init();
 	DEVICE_WIDTH = screen->w;
 	DEVICE_HEIGHT = screen->h;

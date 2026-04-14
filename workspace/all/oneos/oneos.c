@@ -126,6 +126,18 @@ static Entry* Entry_new(char* path, int type) {
 	else if (exactMatch(path, COLLECTIONS_PATH)) strcpy(display_name, lang.collections);
 	else if (exactMatch(path, SETTINGS_PATH)) strcpy(display_name, lang.settings);
 	else if (suffixMatch("/Tools/" PLATFORM, path)) strcpy(display_name, lang.tools);
+	else if (strstr(path, "/Tools/" PLATFORM "/") && suffixMatch(".pak", path)) {
+		const char* tr = NULL;
+		if      (suffixMatch("/ADBD.pak", path))            tr = lang.tool_adbd;
+		else if (suffixMatch("/Bootlogo.pak", path))        tr = lang.tool_bootlogo;
+		else if (suffixMatch("/Clock.pak", path))           tr = lang.tool_clock;
+		else if (suffixMatch("/Files.pak", path))           tr = lang.tool_files;
+		else if (suffixMatch("/Input.pak", path))           tr = lang.tool_input;
+		else if (suffixMatch("/IP.pak", path))              tr = lang.tool_ip;
+		else if (suffixMatch("/Remove Loading.pak", path))  tr = lang.tool_remove_loading;
+		else if (suffixMatch("/Toggle 560p.pak", path))     tr = lang.tool_toggle_560p;
+		if (tr) strcpy(display_name, tr);
+	}
 
 	Entry* self = malloc(sizeof(Entry));
 	self->path = strdup(path);
@@ -1197,6 +1209,7 @@ static void openSettings(SDL_Surface* screen) {
 	while (!quit) {
 		GFX_startFrame();
 		PAD_poll();
+		if (PAD_isPressed(BTN_SELECT) && PAD_justPressed(BTN_START)) GFX_screenshot(screen);
 
 		if (PAD_justRepeated(BTN_UP)) {
 			selected--;
@@ -1493,7 +1506,8 @@ int main (int argc, char *argv[]) {
 		unsigned long now = SDL_GetTicks();
 		
 		PAD_poll();
-			
+		if (PAD_isPressed(BTN_SELECT) && PAD_justPressed(BTN_START)) GFX_screenshot(screen);
+
 		int selected = top->selected;
 		int total = top->entries->count;
 		

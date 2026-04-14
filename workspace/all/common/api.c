@@ -11,6 +11,8 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <sys/stat.h>
+#include <time.h>
 
 #include <msettings.h>
 
@@ -251,6 +253,35 @@ int GFX_truncateText(TTF_Font* font, const char* in_name, char* out_name, int ma
 
 	return text_width;
 }
+int GFX_screenshot(SDL_Surface* src) {
+	if (!src) return 0;
+
+	// Ensure the target directory exists. mkdir is a no-op if already there.
+	mkdir(SDCARD_PATH "/Screenshots", 0755);
+
+	char path[MAX_PATH];
+	time_t now = time(NULL);
+	struct tm* tm = localtime(&now);
+	if (!tm) return 0;
+	snprintf(path, sizeof(path),
+		SDCARD_PATH "/Screenshots/%04d-%02d-%02d_%02d-%02d-%02d.bmp",
+		tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
+		tm->tm_hour, tm->tm_min, tm->tm_sec);
+
+	SDL_RWops* out = SDL_RWFromFile(path, "wb");
+	if (!out) {
+		LOG_info("GFX_screenshot: cannot open %s: %s\n", path, strerror(errno));
+		return 0;
+	}
+	int rc = SDL_SaveBMP_RW(src, out, 1);
+	if (rc != 0) {
+		LOG_info("GFX_screenshot: SDL_SaveBMP_RW failed\n");
+		return 0;
+	}
+	LOG_info("GFX_screenshot: %s\n", path);
+	return 1;
+}
+
 int GFX_wrapText(TTF_Font* font, char* str, int max_width, int max_lines) {
 	if (!str) return 0;
 
@@ -1647,8 +1678,8 @@ void PWR_powerOff(void) {
 		gfx.screen = GFX_resize(w,h,p);
 		
 		char* msg;
-		if (HAS_POWER_BUTTON || HAS_POWEROFF_BUTTON) msg = exists(AUTO_RESUME_PATH) ? "Quicksave created,\npowering off" : "Powering off";
-		else msg = exists(AUTO_RESUME_PATH) ? "Quicksave created,\npower off now" : "Power off now";
+		if (HAS_POWER_BUTTON || HAS_POWEROFF_BUTTON) msg = (char*)(exists(AUTO_RESUME_PATH) ? lang.quicksave_powering_off : lang.powering_off);
+		else msg = (char*)(exists(AUTO_RESUME_PATH) ? lang.quicksave_power_off_now : lang.power_off_now);
 		
 		// LOG_info("PWR_powerOff %s (%ix%i)\n", gfx.screen, gfx.screen->w, gfx.screen->h);
 		
