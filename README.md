@@ -4,8 +4,6 @@ OneOS is a retro game launcher and libretro frontend for the Miyoo Mini Plus. It
 
 It is the core OS of the [Retronian](https://retronian.com) project — *"One OS, All Handhelds"*.
 
-日本語版: [README.ja.md](README.ja.md)
-
 ## Features
 
 - Simple launcher, simple SD card layout
