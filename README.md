@@ -2,6 +2,20 @@
 
 OneOS is a retro game launcher and libretro frontend. It is a fork of [MinUI](https://github.com/shauninman/MinUI) with added support for CJK (Japanese, Simplified/Traditional Chinese, Korean) as well as French and Spanish.
 
+## Screenshots
+
+English UI:
+
+| Launcher | Game selected |
+| -- | -- |
+| ![English launcher](docs/screenshots/launcher-en.png) | ![Tetris with cover art](docs/screenshots/tetris-en.png) |
+
+Japanese UI (multi-byte ROM names render correctly):
+
+| Launcher | Game selected |
+| -- | -- |
+| ![Japanese launcher](docs/screenshots/launcher-ja.png) | ![Tetris with cover art](docs/screenshots/tetris-ja.png) |
+
 ## Features
 
 - Simple launcher, simple SD card layout
