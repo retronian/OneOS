@@ -3449,7 +3449,7 @@ static struct {
 	SDL_Surface* overlay;
 	char* items[MENU_ITEM_COUNT];
 	char* disc_paths[9]; // up to 9 paths, Arc the Lad Collection is 7 discs
-	char minui_dir[256];
+	char oneos_dir[256];
 	char slot_path[256];
 	char base_path[256];
 	char bmp_path[256];
@@ -3493,10 +3493,10 @@ void Menu_init(void) {
 
 	char emu_name[256];
 	getEmuName(game.path, emu_name);
-	sprintf(menu.minui_dir, SHARED_USERDATA_PATH "/.minui/%s", emu_name);
-	mkdir(menu.minui_dir, 0755);
+	sprintf(menu.oneos_dir, SHARED_USERDATA_PATH "/.oneos/%s", emu_name);
+	mkdir(menu.oneos_dir, 0755);
 
-	sprintf(menu.slot_path, "%s/%s.txt", menu.minui_dir, game.name);
+	sprintf(menu.slot_path, "%s/%s.txt", menu.oneos_dir, game.name);
 
 	if (simple_mode) menu.items[ITEM_OPTS] = (char*)lang.reset;
 	
@@ -4617,8 +4617,8 @@ static void Menu_updateState(void) {
 
 	state_slot = last_slot;
 
-	sprintf(menu.bmp_path, "%s/%s.%d.bmp", menu.minui_dir, game.name, menu.slot);
-	sprintf(menu.txt_path, "%s/%s.%d.txt", menu.minui_dir, game.name, menu.slot);
+	sprintf(menu.bmp_path, "%s/%s.%d.bmp", menu.oneos_dir, game.name, menu.slot);
+	sprintf(menu.txt_path, "%s/%s.%d.txt", menu.oneos_dir, game.name, menu.slot);
 	
 	menu.save_exists = exists(save_path);
 	menu.preview_exists = menu.save_exists && exists(menu.bmp_path);
