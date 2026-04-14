@@ -175,6 +175,9 @@ void GFX_setVsync(int vsync);
 
 int GFX_truncateText(TTF_Font* font, const char* in_name, char* out_name, int max_width, int padding); // returns final width
 int GFX_wrapText(TTF_Font* font, char* str, int max_width, int max_lines);
+// Save a BMP screenshot of the given surface to SDCARD/Screenshots/<timestamp>.bmp.
+// Returns 1 on success, 0 on failure. The caller owns src.
+int GFX_screenshot(SDL_Surface* src);
 
 #define GFX_getScaler PLAT_getScaler		// scaler_t:(GFX_Renderer* renderer)
 #define GFX_blitRenderer PLAT_blitRenderer	// void:(GFX_Renderer* renderer)
