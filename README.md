@@ -82,6 +82,7 @@ OneOS is a fork of [MinUI](https://github.com/shauninman/MinUI). The following a
 - Miyoo Mini Plus
 - Miyoo Flip
 - Miyoo Mini Flip
+- Anbernic RG35XX Plus
 - Anbernic RG CubeXX
 - Anbernic RG 28XX
 
