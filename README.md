@@ -78,6 +78,7 @@ OneOS is a fork of [MinUI](https://github.com/shauninman/MinUI). The following a
 
 ### Tested by maintainer
 
+- Miyoo Mini
 - Miyoo Mini Plus
 - Miyoo Flip
 - Miyoo Mini Flip
