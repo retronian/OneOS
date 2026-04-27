@@ -25,7 +25,7 @@
 
 #define FAUX_RECENT_PATH SDCARD_PATH "/Recently Played"
 #define COLLECTIONS_PATH SDCARD_PATH "/Collections"
-#define ONLY_COLLECTION_PATH COLLECTIONS_PATH "/Only.txt"
+#define SELECTION_COLLECTION_PATH COLLECTIONS_PATH "/Selection.txt"
 #define SETTINGS_PATH    SDCARD_PATH "/.unuos-settings" // virtual, never on disk
 
 #define LAST_PATH "/tmp/last.txt" // transient
