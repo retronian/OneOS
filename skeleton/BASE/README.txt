@@ -209,15 +209,17 @@ A collection is just a text file containing an ordered list of full paths to rom
 ----------------------------------------
 Cover art
 
-UnuOS can show a PNG image for a rom, folder, or collection when that item is selected. Put images in a ".res" folder next to the file or folder they belong to. The image filename is the target name with ".png" appended, eg.
+UnuOS can show a PNG image for a rom, folder, or collection when that item is selected. Put images in a ".res" folder next to the file or folder they belong to. The image filename is the target name with its extension replaced by ".png", eg.
 
   /Roms/GBA/Metroid Fusion.gba
-  /Roms/GBA/.res/Metroid Fusion.gba.png
+  /Roms/GBA/.res/Metroid Fusion.png
 
 Folder and collection images use the same pattern:
 
   /Roms/.res/GBA.png
-  /Collections/.res/Metroid series.txt.png
+  /Collections/.res/Metroid series.png
+
+Legacy names with ".png" appended to the full target name, such as "Metroid Fusion.gba.png", are still supported as a fallback.
 
 ----------------------------------------
 
