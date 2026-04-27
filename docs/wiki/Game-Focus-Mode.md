@@ -23,9 +23,10 @@ When `Selection.txt` exists, UnuOS enters Game Focus Mode automatically.
 The file uses the same format as a normal collection: one absolute SD card path per line.
 
 ```text
-/Roms/GBA/Metroid Zero Mission.gba
-/Roms/SNES (SFC)/Super Metroid.sfc
-/Roms/GBA/Metroid Fusion.gba
+/Roms/Game Boy (GB)/Tetris.gb
+/Roms/Game Boy (GB)/Final Fantasy Adventure.gb
+/Roms/Nintendo Entertainment System (FC)/Final Fantasy II.nes
+/Roms/PC Engine (PCE)/Bonk's Adventure.pce
 ```
 
 ## What Changes
