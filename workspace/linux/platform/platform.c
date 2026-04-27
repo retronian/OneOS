@@ -71,7 +71,7 @@ static int device_height;
 static int device_pitch;
 static int rotate = 0;
 SDL_Surface* PLAT_initVideo(void) {
-	// SDL_InitSubSystem(SDL_INIT_VIDEO);
+	SDL_InitSubSystem(SDL_INIT_VIDEO);
 	// SDL_ShowCursor(0);
 	//
 	// LOG_info("Available video drivers:\n");
@@ -102,6 +102,7 @@ SDL_Surface* PLAT_initVideo(void) {
 	int p = FIXED_PITCH;
 	vid.window   = SDL_CreateWindow("UnuOS", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_SHOWN);
 	vid.renderer = SDL_CreateRenderer(vid.window,-1,SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
+	if (!vid.renderer) vid.renderer = SDL_CreateRenderer(vid.window,-1,SDL_RENDERER_SOFTWARE);
 	
 	// SDL_RendererInfo info;
 	// SDL_GetRendererInfo(vid.renderer, &info);
@@ -217,6 +218,16 @@ void PLAT_blitRenderer(GFX_Renderer* renderer) {
 	);
 }
 
+static void captureScreenIfRequested(void) {
+	static int captured = 0;
+	if (captured) return;
+	char* path = getenv("UNUOS_CAPTURE_SCREEN");
+	if (!path || path[0]=='\0') return;
+	captured = 1;
+	SDL_SaveBMP(vid.screen, path);
+	exit(0);
+}
+
 void PLAT_flip(SDL_Surface* IGNORED, int ignored) {
 	
 	if (!vid.blit) {
@@ -231,6 +242,7 @@ void PLAT_flip(SDL_Surface* IGNORED, int ignored) {
 			SDL_RenderCopy(vid.renderer, vid.texture, NULL,NULL);
 		}
 		SDL_RenderPresent(vid.renderer);
+		captureScreenIfRequested();
 		return;
 	}
 	
@@ -284,6 +296,7 @@ void PLAT_flip(SDL_Surface* IGNORED, int ignored) {
 	SDL_RenderCopy(vid.renderer, vid.texture, src_rect, dst_rect);
 	SDL_RenderPresent(vid.renderer);
 	vid.blit = NULL;
+	captureScreenIfRequested();
 }
 
 ///////////////////////////////

@@ -711,7 +711,8 @@ static int resolveExistingPath(char* path, char* resolved_path) {
 }
 
 static int hasCue(char* dir_path, char* cue_path) { // NOTE: dir_path not rom_path
-	char* tmp = strrchr(dir_path, '/') + 1; // folder name
+	char* tmp = strrchr(dir_path, '/'); // folder name
+	tmp = tmp ? tmp + 1 : dir_path;
 	sprintf(cue_path, "%s/%s.cue", dir_path, tmp);
 	return exists(cue_path);
 }
