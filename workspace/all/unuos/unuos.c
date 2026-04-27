@@ -76,6 +76,62 @@ static void StringArray_free(Array* self) {
 
 ///////////////////////////////////////
 
+static Uint32 Surface_getPixel(SDL_Surface* surface, int x, int y) {
+	int bpp = surface->format->BytesPerPixel;
+	Uint8* p = (Uint8*)surface->pixels + y * surface->pitch + x * bpp;
+
+	switch (bpp) {
+		case 1: return *p;
+		case 2: return *(Uint16*)p;
+		case 3:
+			#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+			return p[0] << 16 | p[1] << 8 | p[2];
+			#else
+			return p[0] | p[1] << 8 | p[2] << 16;
+			#endif
+		default: return *(Uint32*)p;
+	}
+}
+
+static SDL_Surface* Surface_scaleToFit(SDL_Surface* src, int max_w, int max_h) {
+	if (src->w <= max_w && src->h <= max_h) return NULL;
+
+	int dst_w = src->w;
+	int dst_h = src->h;
+	if (dst_w * max_h > dst_h * max_w) {
+		dst_w = max_w;
+		dst_h = (src->h * max_w) / src->w;
+	}
+	else {
+		dst_h = max_h;
+		dst_w = (src->w * max_h) / src->h;
+	}
+	if (dst_w < 1) dst_w = 1;
+	if (dst_h < 1) dst_h = 1;
+
+	SDL_Surface* dst = SDL_CreateRGBSurface(SDL_SWSURFACE, dst_w, dst_h, 32, RGBA_MASK_8888);
+	if (!dst) return NULL;
+
+	SDL_LockSurface(src);
+	SDL_LockSurface(dst);
+	for (int y=0; y<dst_h; y++) {
+		int src_y = y * src->h / dst_h;
+		for (int x=0; x<dst_w; x++) {
+			int src_x = x * src->w / dst_w;
+			Uint8 r,g,b,a;
+			SDL_GetRGBA(Surface_getPixel(src, src_x, src_y), src->format, &r,&g,&b,&a);
+			((Uint32*)((Uint8*)dst->pixels + y * dst->pitch))[x] = SDL_MapRGBA(dst->format, r,g,b,a);
+		}
+	}
+	SDL_UnlockSurface(dst);
+	SDL_UnlockSurface(src);
+	SDLX_SetAlpha(dst, SDL_SRCALPHA, SDL_ALPHA_OPAQUE);
+
+	return dst;
+}
+
+///////////////////////////////////////
+
 typedef struct Hash {
 	Array* keys;
 	Array* values;
@@ -1842,10 +1898,15 @@ int main (int argc, char *argv[]) {
 				if (exists(res_path)) {
 					had_thumb = 1;
 					SDL_Surface* thumb = IMG_Load(res_path);
-					ox = MAX(FIXED_WIDTH - FIXED_HEIGHT, (FIXED_WIDTH - thumb->w));
-					oy = (FIXED_HEIGHT - thumb->h) / 2;
-					SDL_BlitSurface(thumb, NULL, screen, &(SDL_Rect){ox,oy});
-					SDL_FreeSurface(thumb);
+					if (thumb) {
+						SDL_Surface* scaled_thumb = Surface_scaleToFit(thumb, SCALE1(120), SCALE1(120));
+						SDL_Surface* display_thumb = scaled_thumb ? scaled_thumb : thumb;
+						ox = FIXED_WIDTH - display_thumb->w - SCALE1(PADDING);
+						oy = (FIXED_HEIGHT - display_thumb->h) / 2;
+						SDL_BlitSurface(display_thumb, NULL, screen, &(SDL_Rect){ox,oy});
+						if (scaled_thumb) SDL_FreeSurface(scaled_thumb);
+						SDL_FreeSurface(thumb);
+					}
 				}
 			}
 			
