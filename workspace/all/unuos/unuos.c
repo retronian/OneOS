@@ -967,7 +967,7 @@ static Array* getCollection(char* path) {
 			
 			char sd_path[256];
 			sprintf(sd_path, "%s%s", SDCARD_PATH, line);
-			char resolved_path[256];
+			char resolved_path[MAX_PATH];
 			if (resolveExistingPath(sd_path, resolved_path)) {
 				int type = suffixMatch(".pak", resolved_path) ? ENTRY_PAK : ENTRY_ROM; // ???
 				Array_push(entries, Entry_new(resolved_path, type));
