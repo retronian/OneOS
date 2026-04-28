@@ -1,5 +1,3 @@
-# Shortcuts
-
 This page is the complete shortcut reference for UnuOS. It covers the launcher, Settings, gameplay, the in-game menu, screenshots, power, volume, and brightness controls.
 
 ## Button Names

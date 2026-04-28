@@ -1,5 +1,3 @@
-# Collections
-
 Collections let you group ROMs from multiple systems into one launcher list. They are useful for series order, genre lists, favorites, or any other custom grouping.
 
 This is an undocumented MinUI feature that UnuOS keeps available.

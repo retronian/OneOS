@@ -1,5 +1,3 @@
-# Screenshots
-
 UnuOS can save the current launcher or gameplay screen as a BMP image.
 
 ## Controls

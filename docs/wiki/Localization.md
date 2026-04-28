@@ -1,5 +1,3 @@
-# Localization
-
 UnuOS supports localized text for the launcher, Settings, Tools labels, and libretro core options.
 
 ## Supported Languages

@@ -1,5 +1,3 @@
-# Box Art
-
 UnuOS can show a PNG image for a ROM, folder, or collection when that item is selected in the launcher.
 
 This is an undocumented MinUI feature that UnuOS keeps available.

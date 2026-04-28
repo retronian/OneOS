@@ -1,5 +1,3 @@
-# Game Focus Mode
-
 Game Focus Mode shows only the games listed in a dedicated collection.
 
 This is useful when you want the launcher to show a small, intentional set of games instead of the full SD card library.
